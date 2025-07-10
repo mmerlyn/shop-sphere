@@ -1,0 +1,1 @@
+SELECT 'ShopSphere User Database initialized successfully!' as message;

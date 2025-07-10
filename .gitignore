@@ -1,0 +1,107 @@
+# ----------------------
+# Node dependencies
+# ----------------------
+node_modules/
+**/node_modules/
+
+# Logs
+logs/
+**/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Environment files
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Build outputs
+dist/
+build/
+**/dist/
+**/build/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+**/coverage/
+.nyc_output/
+**/.nyc_output/
+*.lcov
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Temporary folders
+tmp/
+temp/
+**/tmp/
+**/temp/
+
+# Docker
+.dockerignore
+**/.dockerignore
+**/Dockerfile.prod
+
+# Prisma
+prisma/migrations/*
+!prisma/migrations/.gitkeep
+**/prisma/migrations/*
+!**/prisma/migrations/.gitkeep
+
+# Terraform
+infrastructure/terraform/**/*.tfstate
+infrastructure/terraform/**/*.tfstate.*
+infrastructure/terraform/**/.terraform/
+infrastructure/terraform/**/.terraform.lock.hcl
+
+# Kubernetes secrets
+infrastructure/kubernetes/secrets/
+*.secret.yaml
+
+# Monitoring data
+infrastructure/monitoring/data/
+
+# Build artifacts
+*.tgz
+*.tar.gz
+
+# Test artifacts
+test-results/
+screenshots/
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+
+# Optional npm cache directory
+.npm/
+**/.npm/
+
+# Optional eslint cache
+.eslintcache
+**/.eslintcache

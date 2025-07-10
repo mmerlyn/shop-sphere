@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  postgres-users:
+    image: postgres:15-alpine
+    container_name: shopsphere-postgres-users
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shopsphere_users
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_users_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - shopsphere-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: shopsphere-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - shopsphere-network
+
+  mongodb:
+    image: mongo:7
+    container_name: shopsphere-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: shopsphere_products
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - shopsphere-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: shopsphere-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: password
+    ports:
+      - "5672:5672"   
+      - "15672:15672" 
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - shopsphere-network
+
+volumes:
+  postgres_users_data:
+  redis_data:
+  mongodb_data:
+  rabbitmq_data:
+
+networks:
+  shopsphere-network:
+    driver: bridge

@@ -1,6 +1,27 @@
 version: '3.8'
-
 services:
+  cart-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://shop_user:shop_password@localhost:5432/shop_cart_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - USER_SERVICE_URL=http://user-service:3001
+      - PRODUCT_SERVICE_URL=http://product-service:3002
+      - JWT_SECRET=cart-service-super-secret-jwt-key-2025
+    depends_on:
+      - postgres-users
+      - redis
+    volumes:
+      - .:/app
+      - /app/node_modules
+    networks:
+      - shopsphere-network
   postgres-users:
     image: postgres:15-alpine
     container_name: shopsphere-postgres-users

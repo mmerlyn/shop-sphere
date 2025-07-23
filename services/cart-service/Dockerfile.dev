@@ -1,0 +1,39 @@
+FROM node:18-alpine
+
+RUN apk add --no-cache \
+    openssl \
+    openssl-dev \
+    postgresql-client \
+    libc6-compat \
+    python3 \
+    make \
+    g++
+
+WORKDIR /app
+
+ENV PRISMA_CLI_BINARY_TARGETS="linux-arm64-openssl-1.1.x,linux-arm64-openssl-3.0.x,native"
+ENV PRISMA_ENGINES_MIRROR="https://binaries.prisma.sh"
+ENV OPENSSL_ROOT_DIR="/usr"
+
+COPY package*.json ./
+COPY prisma ./prisma/
+
+RUN npm ci
+
+RUN rm -rf node_modules/.prisma || true
+RUN npx prisma generate
+
+COPY . .
+
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nestjs -u 1001
+
+RUN chown -R nestjs:nodejs /app
+USER nestjs
+
+EXPOSE 3003
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3003/api/v1/health || exit 1
+
+CMD ["npm", "run", "start:dev"]

@@ -65,6 +65,11 @@ temp/
 .dockerignore
 **/.dockerignore
 **/Dockerfile.prod
+docker-compose.override.yml
+docker-compose.*.local.yml
+volumes/
+data/
+.docker/
 
 # Prisma
 prisma/migrations/*

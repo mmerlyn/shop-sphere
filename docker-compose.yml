@@ -1,14 +1,54 @@
 version: '3.8'
+
 services:
+  # 🛒 ORDER SERVICE (NEW)
+  order-service:
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile.dev
+    container_name: shopsphere-order-service
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://order_user:order_password@postgres-orders:5432/shopsphere_orders
+      - USER_SERVICE_URL=http://user-service:3001
+      - PRODUCT_SERVICE_URL=http://product-service:3002
+      - CART_SERVICE_URL=http://cart-service:3003
+      - PAYMENT_SERVICE_URL=http://payment-service:3005
+      - JWT_SECRET=order-service-super-secret-jwt-key-2025
+      - JWT_EXPIRES_IN=24h
+      - TAX_RATE=0.08
+      - FREE_SHIPPING_THRESHOLD=100
+      - CORS_ORIGIN=*
+      - LOG_LEVEL=debug
+    depends_on:
+      - postgres-orders
+      - redis
+    volumes:
+      - ./services/order-service:/app
+      - /app/node_modules
+    networks:
+      - shopsphere-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 🛒 CART SERVICE (EXISTING)
   cart-service:
     build:
-      context: .
+      context: ./services/cart-service
       dockerfile: Dockerfile.dev
+    container_name: shopsphere-cart-service
+    restart: unless-stopped
     ports:
       - "3003:3003"
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://shop_user:shop_password@localhost:5432/shop_cart_db
+      - DATABASE_URL=postgresql://shop_user:shop_password@postgres-users:5432/shop_cart_db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - USER_SERVICE_URL=http://user-service:3001
@@ -18,10 +58,12 @@ services:
       - postgres-users
       - redis
     volumes:
-      - .:/app
+      - ./services/cart-service:/app
       - /app/node_modules
     networks:
       - shopsphere-network
+
+  # 🗄️ POSTGRES FOR USERS & CART (EXISTING)
   postgres-users:
     image: postgres:15-alpine
     container_name: shopsphere-postgres-users
@@ -38,6 +80,24 @@ services:
     networks:
       - shopsphere-network
 
+  # 🗄️ POSTGRES FOR ORDERS (NEW)
+  postgres-orders:
+    image: postgres:15-alpine
+    container_name: shopsphere-postgres-orders
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shopsphere_orders
+      POSTGRES_USER: order_user
+      POSTGRES_PASSWORD: order_password
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_orders_data:/var/lib/postgresql/data
+      - ./scripts/init-orders-db.sql:/docker-entrypoint-initdb.d/init-orders-db.sql
+    networks:
+      - shopsphere-network
+
+  # 🔴 REDIS (EXISTING)
   redis:
     image: redis:7-alpine
     container_name: shopsphere-redis
@@ -49,6 +109,7 @@ services:
     networks:
       - shopsphere-network
 
+  # 🍃 MONGODB (EXISTING)
   mongodb:
     image: mongo:7
     container_name: shopsphere-mongodb
@@ -61,10 +122,11 @@ services:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
-      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro  # Add this line
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     networks:
       - shopsphere-network
 
+  # 🐰 RABBITMQ (EXISTING)
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: shopsphere-rabbitmq
@@ -80,8 +142,24 @@ services:
     networks:
       - shopsphere-network
 
+  # 📊 PGADMIN FOR ORDER DATABASE (OPTIONAL)
+  pgadmin-orders:
+    image: dpage/pgadmin4:latest
+    container_name: shopsphere-pgadmin-orders
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@shopsphere.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "8081:80"
+    depends_on:
+      - postgres-orders
+    networks:
+      - shopsphere-network
+
 volumes:
   postgres_users_data:
+  postgres_orders_data:  # NEW VOLUME FOR ORDERS
   redis_data:
   mongodb_data:
   rabbitmq_data:

@@ -6,24 +6,63 @@ ShopSphere is a modern e-commerce platform designed for scale and performance. B
 ![Performance](https://img.shields.io/badge/Performance-2K%2B%20TPS-green)
 
 ## Key Features
-- **Microservices Architecture** - 8 independent services for enhanced reliability
-- **High Performance** - 2,000+ transactions/sec with sub-100ms API latency
-- **Smart Search** - Elasticsearch-powered instant search (50ms response time)
-- **Optimized Database** - Advanced indexing and partitioning for 1M+ records
-- **Redis Caching** - Lightning-fast data retrieval
+- **Microservices Architecture** - 3/8 services completed with robust separation
+- **Complete Authentication** - JWT-based auth with role-based access control
+- **Advanced Product Catalog** - MongoDB-powered search with 34 API endpoints
+- **Smart Shopping Cart** - Redis-backed cart with guest/user support
+- **Multi-Database Strategy** - PostgreSQL + MongoDB + Redis optimization
+- **Containerized Development** - Docker Compose with full infrastructure
 
-## Microservices Progress
+## Tech Stack
+### Backend Framework
+- **NestJS** + **TypeScript** - Enterprise-grade Node.js framework
+- **Prisma ORM** - Type-safe database access for PostgreSQL
+- **Mongoose** - MongoDB object modeling
+- **ioredis** - High-performance Redis client
+
+### Databases & Storage
+- **PostgreSQL** - User authentication & cart analytics
+- **MongoDB** - Product catalog with advanced search indexing
+- **Redis** - Shopping cart storage & session management
+- **RabbitMQ** - Message queuing
+
+## Microservices
 ✅ **Completed Services (4/8):**
-- 👤 **User Service** - Authentication & user management
-- 📦 **Product Service** - Catalog & inventory management
-- 🛒 **Cart Service** - Shopping cart management & persistence
+- 👤 **User Service** - Complete authentication system with JWT, role-based access, profile management
+- 📦 **Product Service** - Advanced catalog with MongoDB search, categories, variants, 34 endpoints
+- 🛒 **Cart Service** - Redis-powered cart with guest support, coupon system, real-time calculations
 - 🛍️ **Order Service** - Order processing & tracking
 
 🏗️ **In Development (4/8):**
-- 🔍 **Search Service** - Product search & filtering
+- 🔍 **Search Service** - Enhanced Elasticsearch integration
 - 📧 **Notification Service** - Email & SMS notifications
 - 📊 **Payment Service** - Secure payment handling
 - 🌐 **API Gateway** - Request routing & rate limiting
+
+## Current Performance & Features
+
+### User Service Achievements
+- **Complete Authentication Flow** - Registration, login, JWT refresh
+- **Role-based Access Control** - Admin, user, guest permissions
+- **Profile Management** - Full user data management
+- **Security Features** - Password hashing, token validation
+
+### Product Service Achievements  
+- **34 API Endpoints** - Comprehensive product management
+- **Advanced Search Engine** - MongoDB text indexing with filters
+- **Category Hierarchy** - Multi-level product categorization
+- **Product Variants** - Size, color, stock management
+- **SEO Optimization** - URL slugs and metadata
+- **Business Logic** - Related products, brands, vendor support
+
+### Cart Service Achievements
+- **12 API Endpoints** - Complete cart functionality
+- **Redis Performance** - Sub-millisecond cart operations
+- **Guest Cart Support** - Seamless anonymous shopping
+- **Cart Merging** - Guest to user cart conversion
+- **Coupon System** - Discount codes with business rules
+- **Real-time Calculations** - Tax, shipping, discounts
+- **Product Integration** - Live stock validation
 
 ## Target Performance Metrics
 - **API Latency:** < 100ms average
@@ -31,15 +70,6 @@ ShopSphere is a modern e-commerce platform designed for scale and performance. B
 - **Database Operations:** < 80ms CRUD operations
 - **Throughput:** 2,000+ transactions/second (target)
 - **Scalability:** Handles 1M+ product records
-
-## Tech Stack
-### Backend
-- **Node.js** & **Node.js** + **TypeScript**
-- **PostgreSQL** + **Prisma ORM** & **MongoDB** + **Mongoose**
-- **Redis** 
-- **Elasticsearch** 
-- **JWT** + **OAuth**
-- **Jest** + **Supertest**
 
 ## Contributing
 This project is currently in active development. The core microservices are functional but the platform is not yet production-ready.
@@ -49,7 +79,7 @@ This project is currently in active development. The core microservices are func
 - **Review & Rating Service**
 - **Inventory Management Service**
 - **Recommendation Engine**
-- **Analytics Service**
-- **Coupon & Discount Service**
+- **Analytics & Reporting Service**
+- **Coupon & Promotion Service**
 
 Feel free to check back for updates 

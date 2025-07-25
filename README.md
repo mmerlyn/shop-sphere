@@ -83,3 +83,5 @@ This project is currently in active development. The core microservices are func
 - **Coupon & Promotion Service**
 
 Feel free to check back for updates 
+
+⭐ **Star this repo if you find the microservices architecture interesting!**

@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+model Order {
+  id            String        @id @default(uuid())
+  orderNumber   String        @unique @default(cuid())
+  userId        String?       
+  sessionId     String?      
+
+  status        OrderStatus   @default(PENDING)
+  paymentStatus PaymentStatus @default(PENDING)
+
+  subtotal      Decimal       @db.Decimal(10, 2)
+  taxAmount     Decimal       @db.Decimal(10, 2)
+  shippingCost  Decimal       @db.Decimal(10, 2)
+  discountAmount Decimal      @db.Decimal(10, 2) @default(0.00)
+  totalAmount   Decimal       @db.Decimal(10, 2)
+  
+  paymentMethod String?
+  paymentId     String?       
+  
+  shippingAddress Json        
+  billingAddress  Json        
+
+  customerEmail String
+  customerPhone String?
+
+  couponCode    String?
+  couponDiscount Decimal?     @db.Decimal(10, 2)
+ 
+  trackingNumber String?
+  shippedAt     DateTime?
+  deliveredAt   DateTime?
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+  
+  @@map("orders")
+  @@index([userId])
+  @@index([sessionId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([orderNumber])
+}
+
+model OrderItem {
+  id          String  @id @default(uuid())
+  orderId     String
+
+  productId   String
+  productName String
+  productSku  String?
+  productSlug String?
+
+  variantId   String?
+  variantName String?
+  attributes  Json?  
+
+  unitPrice   Decimal @db.Decimal(10, 2)
+  quantity    Int
+  totalPrice  Decimal @db.Decimal(10, 2)
+
+  productImage String?
+  brand       String?
+  category    String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  @@map("order_items")
+  @@index([orderId])
+  @@index([productId])
+}
+
+model OrderStatusHistory {
+  id          String      @id @default(uuid())
+  orderId     String
+
+  fromStatus  OrderStatus?
+  toStatus    OrderStatus
+  reason      String?
+  notes       String?
+
+  changedBy   String?    
+  changedByType String    @default("SYSTEM") 
+
+  createdAt   DateTime    @default(now())
+
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  @@map("order_status_history")
+  @@index([orderId])
+  @@index([createdAt])
+}

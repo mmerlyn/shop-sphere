@@ -1,4 +1,4 @@
-# 🛒 shop-sphere
+# 🛍️ shop-sphere
 ShopSphere is a modern e-commerce platform designed for scale and performance. Built with a distributed microservices architecture to handle high traffic and provide seamless shopping experiences.
 
 ![Status](https://img.shields.io/badge/Status-In%20Progress-yellow)

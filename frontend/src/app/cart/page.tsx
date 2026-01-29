@@ -149,7 +149,7 @@ export default function CartPage() {
                 {/* Product Image */}
                 <div className="relative w-24 h-24 flex-shrink-0 rounded-md overflow-hidden bg-muted">
                   <Image
-                    src={item.image || '/placeholder-product.png'}
+                    src={item.image || '/placeholder-product.svg'}
                     alt={item.name}
                     fill
                     className="object-cover"
@@ -250,7 +250,7 @@ export default function CartPage() {
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Try: SAVE10, SAVE20, FLAT50, FLAT100
+                  Enter a valid coupon code to get a discount
                 </p>
               </div>
 

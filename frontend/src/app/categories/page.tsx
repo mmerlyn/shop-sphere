@@ -66,7 +66,7 @@ export default function CategoriesPage() {
             return (
               <Card key={category.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                 <CardHeader className="bg-muted/50">
-                  <Link href={`/products?categoryId=${category.id}`}>
+                  <Link href={`/products?category=${category.id}`}>
                     <CardTitle className="flex items-center justify-between group">
                       <span className="group-hover:text-primary transition-colors">
                         {category.name}
@@ -90,7 +90,7 @@ export default function CategoriesPage() {
                       {children.map((child) => (
                         <Link
                           key={child.id}
-                          href={`/products?categoryId=${child.id}`}
+                          href={`/products?category=${child.id}`}
                           className="text-sm px-3 py-1 rounded-full bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
                         >
                           {child.name}

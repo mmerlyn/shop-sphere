@@ -94,7 +94,7 @@ export default function ProductDetailPage() {
     ? Math.round(((product.comparePrice - product.price) / product.comparePrice) * 100)
     : 0;
 
-  const images = product.images?.length > 0 ? product.images : ['/placeholder-product.png'];
+  const images = product.images?.length > 0 ? product.images : ['/placeholder-product.svg'];
 
   return (
     <div className="container mx-auto px-4 py-8">

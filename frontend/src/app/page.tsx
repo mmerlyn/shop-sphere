@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Truck, Shield, RefreshCw } from 'lucide-react';
+import { ArrowRight, Truck, Shield, RefreshCw, Laptop, Shirt, Home, Dumbbell, Sparkles, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProductGrid, ProductGridSkeleton } from '@/components/product';
 import type { Product, Category } from '@/types';
@@ -53,19 +53,30 @@ export default function HomePage() {
   return (
     <div className="flex flex-col">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary/10 via-primary/5 to-background py-20 lg:py-32">
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-accent/30 py-20 lg:py-32">
+        {/* Background decoration */}
+        <div className="absolute inset-0 -z-10">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-accent/20 rounded-full blur-3xl" />
+        </div>
         <div className="container mx-auto px-4">
           <div className="max-w-3xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              New arrivals every week
+            </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight">
-              Discover Your Style at{' '}
-              <span className="text-primary">ShopSphere</span>
+              Discover Quality Products at{' '}
+              <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                ShopSphere
+              </span>
             </h1>
-            <p className="mt-6 text-lg text-muted-foreground max-w-xl">
-              Explore our curated collection of quality products. From electronics to fashion,
-              find everything you need at unbeatable prices.
+            <p className="mt-6 text-lg text-muted-foreground max-w-xl leading-relaxed">
+              Explore our curated collection of premium products. From electronics to fashion,
+              find everything you need with fast shipping and secure checkout.
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
-              <Button size="lg" asChild>
+              <Button size="lg" className="shadow-lg shadow-primary/25" asChild>
                 <Link href="/products">
                   Shop Now
                   <ArrowRight className="ml-2 h-5 w-5" />
@@ -74,6 +85,16 @@ export default function HomePage() {
               <Button size="lg" variant="outline" asChild>
                 <Link href="/categories">Browse Categories</Link>
               </Button>
+            </div>
+            <div className="mt-12 flex items-center gap-8 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Truck className="h-5 w-5 text-primary" />
+                <span>Free Shipping</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-primary" />
+                <span>Secure Payment</span>
+              </div>
             </div>
           </div>
         </div>
@@ -103,7 +124,10 @@ export default function HomePage() {
         <section className="py-16">
           <div className="container mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold">Shop by Category</h2>
+              <div>
+                <h2 className="text-2xl md:text-3xl font-bold">Shop by Category</h2>
+                <p className="text-muted-foreground mt-1">Find what you&apos;re looking for</p>
+              </div>
               <Button variant="ghost" asChild>
                 <Link href="/categories">
                   View All
@@ -111,25 +135,33 @@ export default function HomePage() {
                 </Link>
               </Button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {categories.slice(0, 8).map((category) => (
-                <Link
-                  key={category.id}
-                  href={`/products?categoryId=${category.id}`}
-                  className="group relative overflow-hidden rounded-lg bg-muted aspect-[4/3] flex items-center justify-center hover:bg-muted/80 transition-colors"
-                >
-                  <div className="text-center p-4">
-                    <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {categories.slice(0, 5).map((category, index) => {
+                const icons = [Laptop, Shirt, Home, Dumbbell, Sparkles, BookOpen];
+                const Icon = icons[index % icons.length];
+                const gradients = [
+                  'from-blue-500/20 to-blue-600/10',
+                  'from-pink-500/20 to-pink-600/10',
+                  'from-amber-500/20 to-amber-600/10',
+                  'from-green-500/20 to-green-600/10',
+                  'from-purple-500/20 to-purple-600/10',
+                ];
+                const iconColors = ['text-blue-600', 'text-pink-600', 'text-amber-600', 'text-green-600', 'text-purple-600'];
+                return (
+                  <Link
+                    key={category.id}
+                    href={`/products?category=${category.id}`}
+                    className={`group relative overflow-hidden rounded-xl bg-gradient-to-br ${gradients[index % gradients.length]} border border-border/50 p-6 flex flex-col items-center justify-center text-center hover:shadow-lg hover:scale-[1.02] transition-all duration-200`}
+                  >
+                    <div className={`w-12 h-12 rounded-full bg-background shadow-sm flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
+                      <Icon className={`h-6 w-6 ${iconColors[index % iconColors.length]}`} />
+                    </div>
+                    <h3 className="font-semibold text-sm group-hover:text-primary transition-colors">
                       {category.name}
                     </h3>
-                    {category.description && (
-                      <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                        {category.description}
-                      </p>
-                    )}
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -163,15 +195,24 @@ export default function HomePage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-primary text-primary-foreground">
+      <section className="py-20 bg-gradient-to-br from-primary via-primary to-primary/80 text-primary-foreground relative overflow-hidden">
+        <div className="absolute inset-0 -z-10">
+          <div className="absolute top-0 left-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+        </div>
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl md:text-4xl font-bold">Ready to Start Shopping?</h2>
           <p className="mt-4 text-lg opacity-90 max-w-xl mx-auto">
             Join thousands of satisfied customers and discover amazing deals every day.
           </p>
-          <Button size="lg" variant="secondary" className="mt-8" asChild>
-            <Link href="/register">Create an Account</Link>
-          </Button>
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
+            <Button size="lg" variant="secondary" className="shadow-lg" asChild>
+              <Link href="/register">Create an Account</Link>
+            </Button>
+            <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10" asChild>
+              <Link href="/products">Browse Products</Link>
+            </Button>
+          </div>
         </div>
       </section>
     </div>

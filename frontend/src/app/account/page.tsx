@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { User, Package, Settings, LogOut } from 'lucide-react';
+import { User, Package, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -49,12 +49,6 @@ export default function AccountPage() {
       description: 'View and track your orders',
       href: '/account/orders',
       icon: Package,
-    },
-    {
-      title: 'Account Settings',
-      description: 'Manage your profile and preferences',
-      href: '/account/settings',
-      icon: Settings,
     },
   ];
 

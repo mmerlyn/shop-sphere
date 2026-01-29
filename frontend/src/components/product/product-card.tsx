@@ -47,32 +47,32 @@ export function ProductCard({ product }: ProductCardProps) {
     ? Math.round(((comparePrice - price) / comparePrice) * 100)
     : 0;
 
-  const imageUrl = product.images?.[0] || '/placeholder-product.png';
+  const imageUrl = product.images?.[0] || '/placeholder-product.svg';
 
   return (
     <Link href={`/products/${product.slug}`}>
-      <Card className="group h-full overflow-hidden transition-all hover:shadow-lg">
-        <div className="relative aspect-square overflow-hidden bg-muted">
+      <Card className="group h-full overflow-hidden border-border/50 bg-card transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1">
+        <div className="relative aspect-square overflow-hidden bg-gradient-to-br from-muted to-muted/50">
           <Image
             src={imageUrl}
             alt={product.name}
             fill
-            className="object-cover transition-transform group-hover:scale-105"
+            className="object-cover transition-transform duration-300 group-hover:scale-110"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
           />
           {discount > 0 && (
-            <Badge className="absolute top-2 left-2" variant="destructive">
-              -{discount}%
+            <Badge className="absolute top-3 left-3 shadow-md" variant="destructive">
+              -{discount}% OFF
             </Badge>
           )}
           {product.isFeatured && (
-            <Badge className="absolute top-2 right-2" variant="secondary">
+            <Badge className="absolute top-3 right-3 bg-primary shadow-md">
               Featured
             </Badge>
           )}
           {product.inventory <= 0 && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-              <Badge variant="destructive" className="text-lg">
+            <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+              <Badge variant="destructive" className="text-lg px-4 py-1">
                 Out of Stock
               </Badge>
             </div>

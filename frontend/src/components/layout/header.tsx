@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, User, Menu, Search, LogOut, Package, Settings } from 'lucide-react';
+import { ShoppingCart, User, Menu, Search, LogOut, Package, Settings, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -79,7 +79,12 @@ export function Header() {
 
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <span className="text-xl font-bold">ShopSphere</span>
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <Globe className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+              ShopSphere
+            </span>
           </Link>
 
           {/* Desktop Navigation */}

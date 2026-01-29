@@ -185,7 +185,7 @@ export default function OrderDetailPage() {
                   <div key={item.id} className="flex gap-4">
                     <div className="relative w-20 h-20 flex-shrink-0 rounded bg-muted">
                       <Image
-                        src={item.image || '/placeholder-product.png'}
+                        src={item.image || '/placeholder-product.svg'}
                         alt={item.name}
                         fill
                         className="object-cover rounded"

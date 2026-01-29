@@ -3,7 +3,6 @@ import {
   All,
   Req,
   Res,
-  Param,
   UseGuards,
   HttpStatus,
 } from '@nestjs/common';
@@ -18,6 +17,9 @@ const PUBLIC_ROUTES = [
   { service: 'products', paths: ['/api/products', '/api/categories', '/api/health'] },
   { service: 'cart', paths: ['/api/health'] },
   { service: 'orders', paths: ['/api/health'] },
+  { service: 'notifications', paths: ['/api/health'] },
+  { service: 'payments', paths: ['/api/health'] },
+  { service: 'reviews', paths: ['/api/reviews/product', '/api/health'] },
 ];
 
 @Controller()
@@ -34,7 +36,8 @@ export class ProxyController {
         path === publicPath ||
         path.startsWith(publicPath + '/') ||
         (publicPath.includes('/api/products') && path.match(/^\/api\/products(\/|$)/)) ||
-        (publicPath.includes('/api/categories') && path.match(/^\/api\/categories(\/|$)/))
+        (publicPath.includes('/api/categories') && path.match(/^\/api\/categories(\/|$)/)) ||
+        (publicPath.includes('/api/reviews/product') && path.match(/^\/api\/reviews\/product(\/|$)/))
     );
   }
 
@@ -75,13 +78,26 @@ export class ProxyController {
     return this.proxyRequest('products', req, res);
   }
 
-  // Cart Service routes
+  // Upload routes (requires authentication)
+  @All('upload')
+  async proxyUploadRoot(@Req() req: Request, @Res() res: Response) {
+    return this.proxyRequest('products', req, res);
+  }
+
+  @All('upload/*')
+  async proxyUpload(@Req() req: Request, @Res() res: Response) {
+    return this.proxyRequest('products', req, res);
+  }
+
+  // Cart Service routes (public for guest carts)
   @All('cart')
+  @Public()
   async proxyCartRoot(@Req() req: Request, @Res() res: Response) {
     return this.proxyRequest('cart', req, res);
   }
 
   @All('cart/*')
+  @Public()
   async proxyCart(@Req() req: Request, @Res() res: Response) {
     return this.proxyRequest('cart', req, res);
   }
@@ -100,6 +116,51 @@ export class ProxyController {
   @All('checkout/*')
   async proxyCheckout(@Req() req: Request, @Res() res: Response) {
     return this.proxyRequest('orders', req, res);
+  }
+
+  // Payment Service routes (now standalone)
+  @All('payments/webhook')
+  @Public()
+  async proxyPaymentWebhook(@Req() req: Request, @Res() res: Response) {
+    return this.proxyRequest('payments', req, res);
+  }
+
+  @All('payments')
+  async proxyPaymentsRoot(@Req() req: Request, @Res() res: Response) {
+    return this.proxyRequest('payments', req, res);
+  }
+
+  @All('payments/*')
+  async proxyPayments(@Req() req: Request, @Res() res: Response) {
+    return this.proxyRequest('payments', req, res);
+  }
+
+  // Notification Service routes
+  @All('notifications')
+  async proxyNotificationsRoot(@Req() req: Request, @Res() res: Response) {
+    return this.proxyRequest('notifications', req, res);
+  }
+
+  @All('notifications/*')
+  async proxyNotifications(@Req() req: Request, @Res() res: Response) {
+    return this.proxyRequest('notifications', req, res);
+  }
+
+  // Review Service routes
+  @All('reviews/product/*')
+  @Public()
+  async proxyReviewsPublic(@Req() req: Request, @Res() res: Response) {
+    return this.proxyRequest('reviews', req, res);
+  }
+
+  @All('reviews')
+  async proxyReviewsRoot(@Req() req: Request, @Res() res: Response) {
+    return this.proxyRequest('reviews', req, res);
+  }
+
+  @All('reviews/*')
+  async proxyReviews(@Req() req: Request, @Res() res: Response) {
+    return this.proxyRequest('reviews', req, res);
   }
 
   private async proxyRequest(

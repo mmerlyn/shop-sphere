@@ -30,6 +30,9 @@ model Order {
   @@index([userId])
   @@index([orderNumber])
   @@index([status])
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@index([paymentId])
   @@map("orders")
 }
 
@@ -44,6 +47,7 @@ model OrderItem {
   quantity  Int
   image     String?
 
+  @@index([orderId])
   @@map("order_items")
 }
 

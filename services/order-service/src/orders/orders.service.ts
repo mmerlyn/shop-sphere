@@ -15,6 +15,8 @@ export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
   private readonly cartServiceUrl: string;
   private readonly productServiceUrl: string;
+  private readonly userServiceUrl: string;
+  private readonly notificationServiceUrl: string;
 
   constructor(
     private prisma: PrismaService,
@@ -24,30 +26,30 @@ export class OrdersService {
       this.configService.get<string>('CART_SERVICE_URL') || 'http://localhost:3003';
     this.productServiceUrl =
       this.configService.get<string>('PRODUCT_SERVICE_URL') || 'http://localhost:3002';
+    this.userServiceUrl =
+      this.configService.get<string>('USER_SERVICE_URL') || 'http://localhost:3001';
+    this.notificationServiceUrl =
+      this.configService.get<string>('NOTIFICATION_SERVICE_URL') || 'http://localhost:3005';
   }
 
   async create(userId: string, createOrderDto: CreateOrderDto) {
     const { cartId, shippingAddress, billingAddress, paymentMethod, notes } =
       createOrderDto;
 
-    // Fetch cart from Cart Service
     const cart = await this.fetchCart(cartId);
 
     if (!cart || cart.items.length === 0) {
       throw new BadRequestException('Cart is empty');
     }
 
-    // Generate order number
     const orderNumber = this.generateOrderNumber();
 
-    // Calculate totals
     const subtotal = cart.subtotal;
     const discount = cart.discount || 0;
     const shippingCost = this.calculateShipping(subtotal);
     const tax = this.calculateTax(subtotal - discount);
     const total = subtotal - discount + shippingCost + tax;
 
-    // Create order with items
     const order = await this.prisma.order.create({
       data: {
         orderNumber,
@@ -76,15 +78,53 @@ export class OrdersService {
       include: { items: true },
     });
 
-    // Update inventory for each product
     for (const item of cart.items) {
       await this.updateProductInventory(item.productId, -item.quantity);
     }
 
-    // Clear the cart after successful order
     await this.clearCart(cartId);
 
+    this.sendOrderConfirmationEmail(order, shippingAddress);
+
     return order;
+  }
+
+  private async sendOrderConfirmationEmail(order: any, shippingAddress: any): Promise<void> {
+    try {
+      const user = await this.fetchUser(order.userId);
+      if (!user) return;
+
+      await axios.post(`${this.notificationServiceUrl}/api/notifications/order-confirmation`, {
+        email: user.email,
+        firstName: user.firstName,
+        orderNumber: order.orderNumber,
+        orderDate: order.createdAt,
+        items: order.items.map((item: any) => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: Number(item.price),
+          image: item.image,
+        })),
+        subtotal: Number(order.subtotal),
+        shipping: Number(order.shippingCost),
+        tax: Number(order.tax),
+        discount: Number(order.discount),
+        total: Number(order.total),
+        shippingAddress,
+      });
+    } catch (error) {
+      this.logger.error('Failed to send order confirmation notification', error);
+    }
+  }
+
+  private async fetchUser(userId: string): Promise<any> {
+    try {
+      const response = await axios.get(`${this.userServiceUrl}/api/users/${userId}`);
+      return response.data;
+    } catch (error) {
+      this.logger.warn(`Failed to fetch user ${userId}`);
+      return null;
+    }
   }
 
   async findAll(userId: string, page = 1, limit = 10) {
@@ -151,7 +191,6 @@ export class OrdersService {
   async updateStatus(id: string, updateStatusDto: UpdateOrderStatusDto) {
     const order = await this.findOne(id);
 
-    // Validate status transition
     this.validateStatusTransition(order.status as OrderStatus, updateStatusDto.status);
 
     const updated = await this.prisma.order.update({
@@ -163,7 +202,6 @@ export class OrdersService {
       include: { items: true },
     });
 
-    // If order is cancelled, restore inventory
     if (updateStatusDto.status === OrderStatus.CANCELLED) {
       for (const item of order.items) {
         await this.updateProductInventory(item.productId, item.quantity);
@@ -183,7 +221,6 @@ export class OrdersService {
     return this.updateStatus(id, { status: OrderStatus.CANCELLED });
   }
 
-  // Admin methods
   async findAllAdmin(
     page = 1,
     limit = 10,

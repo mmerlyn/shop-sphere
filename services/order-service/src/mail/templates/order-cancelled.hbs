@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Cancelled</title>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #000; color: #fff; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+    .cancel-box { background: #f8d7da; border: 1px solid #dc3545; border-radius: 8px; padding: 20px; margin: 20px 0; }
+    .refund-box { background: #d4edda; border: 1px solid #28a745; border-radius: 8px; padding: 20px; margin: 20px 0; }
+    .button { display: inline-block; background: #000; color: #fff; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+    .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Order Cancelled</h1>
+    <p>Order #{{orderNumber}}</p>
+  </div>
+  <div class="content">
+    <p>Hi {{firstName}},</p>
+
+    <div class="cancel-box">
+      <p style="margin: 0;"><strong>Your order has been cancelled.</strong></p>
+      {{#if reason}}
+      <p style="margin: 10px 0 0 0;">Reason: {{reason}}</p>
+      {{/if}}
+    </div>
+
+    {{#if refundAmount}}
+    <div class="refund-box">
+      <p style="margin: 0;"><strong>Refund Amount: ${{refundAmount}}</strong></p>
+      <p style="margin: 10px 0 0 0;">Your refund will be processed within 5-7 business days.</p>
+    </div>
+    {{/if}}
+
+    <p>If you have any questions about your cancellation or refund, please contact our support team.</p>
+
+    <p style="text-align: center;">
+      <a href="{{shopUrl}}" class="button">Continue Shopping</a>
+    </p>
+
+    <p>We hope to see you again soon!</p>
+
+    <p>Best regards,<br>The ShopSphere Team</p>
+  </div>
+  <div class="footer">
+    <p>&copy; 2024 ShopSphere. All rights reserved.</p>
+  </div>
+</body>
+</html>

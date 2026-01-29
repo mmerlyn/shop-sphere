@@ -3,17 +3,23 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { SearchService } from '../search/search.service';
+import { RedisService } from '../redis/redis.service';
 import { CreateProductDto, UpdateProductDto, SearchProductDto } from './dto';
 import { Prisma } from '@prisma/client';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class ProductsService {
+  private readonly logger = new Logger(ProductsService.name);
+
   constructor(
     private prisma: PrismaService,
     private searchService: SearchService,
+    private redisService: RedisService,
   ) {}
 
   async create(createProductDto: CreateProductDto) {
@@ -46,7 +52,6 @@ export class ProductsService {
       include: { category: true },
     });
 
-    // Index in Elasticsearch
     await this.searchService.indexProduct({
       id: product.id,
       name: product.name,
@@ -64,10 +69,20 @@ export class ProductsService {
       createdAt: product.createdAt,
     });
 
+    await this.redisService.delPattern('products:list:*');
+    await this.redisService.delPattern('products:featured:*');
+
     return product;
   }
 
   async findAll(params: SearchProductDto) {
+    const paramsHash = crypto.createHash('md5').update(JSON.stringify(params)).digest('hex');
+    const cacheKey = `products:list:${paramsHash}`;
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
     const {
       q,
       category,
@@ -81,7 +96,6 @@ export class ProductsService {
       sortOrder = 'desc',
     } = params;
 
-    // If Elasticsearch is available and we have a search query, use it
     if (this.searchService.isAvailable() && q) {
       const searchResult = await this.searchService.search({
         q,
@@ -96,7 +110,7 @@ export class ProductsService {
         sortOrder,
       });
 
-      return {
+      const searchResponse = {
         data: searchResult.hits,
         meta: {
           total: searchResult.total,
@@ -105,9 +119,11 @@ export class ProductsService {
           totalPages: Math.ceil(searchResult.total / limit),
         },
       };
+
+      await this.redisService.set(cacheKey, JSON.stringify(searchResponse), 60);
+      return searchResponse;
     }
 
-    // Fallback to database query
     const where: Prisma.ProductWhereInput = { isActive: true };
 
     if (q) {
@@ -146,7 +162,7 @@ export class ProductsService {
       this.prisma.product.count({ where }),
     ]);
 
-    return {
+    const result = {
       data: products,
       meta: {
         total,
@@ -155,9 +171,18 @@ export class ProductsService {
         totalPages: Math.ceil(total / limit),
       },
     };
+
+    await this.redisService.set(cacheKey, JSON.stringify(result), 60);
+    return result;
   }
 
   async findOne(id: string) {
+    const cacheKey = `product:${id}`;
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: { category: true },
@@ -167,10 +192,17 @@ export class ProductsService {
       throw new NotFoundException('Product not found');
     }
 
+    await this.redisService.set(cacheKey, JSON.stringify(product), 300);
     return product;
   }
 
   async findBySlug(slug: string) {
+    const cacheKey = `product:slug:${slug}`;
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
     const product = await this.prisma.product.findUnique({
       where: { slug },
       include: { category: true },
@@ -180,6 +212,7 @@ export class ProductsService {
       throw new NotFoundException('Product not found');
     }
 
+    await this.redisService.set(cacheKey, JSON.stringify(product), 300);
     return product;
   }
 
@@ -243,7 +276,6 @@ export class ProductsService {
       include: { category: true },
     });
 
-    // Update in Elasticsearch
     await this.searchService.updateProduct(id, {
       name: updated.name,
       description: updated.description,
@@ -259,6 +291,11 @@ export class ProductsService {
       inventory: updated.inventory,
     });
 
+    await this.redisService.del(`product:${id}`);
+    await this.redisService.del(`product:slug:${updated.slug}`);
+    await this.redisService.delPattern('products:list:*');
+    await this.redisService.delPattern('products:featured:*');
+
     return updated;
   }
 
@@ -267,8 +304,12 @@ export class ProductsService {
 
     const deleted = await this.prisma.product.delete({ where: { id } });
 
-    // Remove from Elasticsearch
     await this.searchService.deleteProduct(id);
+
+    await this.redisService.del(`product:${id}`);
+    await this.redisService.delPattern('product:slug:*');
+    await this.redisService.delPattern('products:list:*');
+    await this.redisService.delPattern('products:featured:*');
 
     return deleted;
   }
@@ -288,12 +329,21 @@ export class ProductsService {
   }
 
   async getFeatured(limit = 10) {
-    return this.prisma.product.findMany({
+    const cacheKey = `products:featured:${limit}`;
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    const products = await this.prisma.product.findMany({
       where: { isActive: true, isFeatured: true },
       include: { category: true },
       take: limit,
       orderBy: { createdAt: 'desc' },
     });
+
+    await this.redisService.set(cacheKey, JSON.stringify(products), 120);
+    return products;
   }
 
   async getLowStock() {

@@ -20,6 +20,8 @@ model Category {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  @@index([parentId])
+  @@index([isActive])
   @@map("categories")
 }
 
@@ -47,5 +49,10 @@ model Product {
   @@index([categoryId])
   @@index([slug])
   @@index([sku])
+  @@index([isActive, isFeatured])
+  @@index([price])
+  @@index([createdAt])
+  @@index([isActive, categoryId])
+  @@index([brand])
   @@map("products")
 }

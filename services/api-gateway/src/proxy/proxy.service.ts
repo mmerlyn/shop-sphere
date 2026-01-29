@@ -12,6 +12,9 @@ export class ProxyService {
       products: this.configService.get<string>('PRODUCT_SERVICE_URL') || 'http://localhost:3002',
       cart: this.configService.get<string>('CART_SERVICE_URL') || 'http://localhost:3003',
       orders: this.configService.get<string>('ORDER_SERVICE_URL') || 'http://localhost:3004',
+      notifications: this.configService.get<string>('NOTIFICATION_SERVICE_URL') || 'http://localhost:3005',
+      payments: this.configService.get<string>('PAYMENT_SERVICE_URL') || 'http://localhost:3006',
+      reviews: this.configService.get<string>('REVIEW_SERVICE_URL') || 'http://localhost:3007',
     };
   }
 
@@ -32,7 +35,9 @@ export class ProxyService {
       );
     }
 
-    const url = `${baseUrl}${path}`;
+    // Strip query string from path since we pass query params separately
+    const pathWithoutQuery = path.split('?')[0];
+    const url = `${baseUrl}${pathWithoutQuery}`;
 
     const config: AxiosRequestConfig = {
       method,

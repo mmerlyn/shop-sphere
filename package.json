@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "install:all": "npm install && npm run install:services",
-    "install:services": "cd services/user-service && npm install && cd ../product-service && npm install && cd ../cart-service && npm install && cd ../order-service && npm install && cd ../api-gateway && npm install",
+    "install:services": "cd services/user-service && npm install && cd ../product-service && npm install && cd ../cart-service && npm install && cd ../order-service && npm install && cd ../api-gateway && npm install && cd ../notification-service && npm install && cd ../payment-service && npm install && cd ../review-service && npm install",
     "dev:user": "cd services/user-service && npm run start:dev",
     "dev:product": "cd services/product-service && npm run start:dev",
     "dev:cart": "cd services/cart-service && npm run start:dev",
@@ -22,7 +22,15 @@
     "migrate:order": "cd services/order-service && npx prisma migrate dev",
     "test": "npm run test --workspaces",
     "lint": "eslint . --ext .ts",
-    "format": "prettier --write \"**/*.{ts,json,md}\""
+    "format": "prettier --write \"**/*.{ts,json,md}\"",
+    "dev:notification": "cd services/notification-service && npm run start:dev",
+    "dev:payment": "cd services/payment-service && npm run start:dev",
+    "dev:review": "cd services/review-service && npm run start:dev",
+    "migrate:payment": "cd services/payment-service && npx prisma migrate dev",
+    "migrate:review": "cd services/review-service && npx prisma migrate dev",
+    "seed:products": "cd services/product-service && ts-node prisma/seed-million.ts",
+    "seed:orders": "cd services/order-service && ts-node prisma/seed-orders.ts",
+    "load-test": "bash load-tests/run-all.sh"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

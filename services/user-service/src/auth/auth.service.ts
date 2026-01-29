@@ -3,13 +3,16 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
+import axios from 'axios';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../database/prisma.service';
-import { RegisterDto, LoginDto } from './dto';
+import { RegisterDto, LoginDto, ForgotPasswordDto, ResetPasswordDto } from './dto';
 import { User } from '@prisma/client';
 
 export interface TokenPayload {
@@ -35,26 +38,29 @@ export interface AuthResponse extends AuthTokens {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+  private readonly notificationServiceUrl: string;
+
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
     private prisma: PrismaService,
-  ) {}
+  ) {
+    this.notificationServiceUrl =
+      this.configService.get<string>('NOTIFICATION_SERVICE_URL') || 'http://localhost:3005';
+  }
 
   async register(registerDto: RegisterDto): Promise<AuthResponse> {
     const { email, password, firstName, lastName } = registerDto;
 
-    // Check if user already exists
     const existingUser = await this.usersService.findByEmail(email);
     if (existingUser) {
       throw new ConflictException('User with this email already exists');
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
     const user = await this.usersService.create({
       email,
       password: hashedPassword,
@@ -62,7 +68,6 @@ export class AuthService {
       lastName,
     });
 
-    // Generate tokens
     const tokens = await this.generateTokens(user);
 
     return {
@@ -103,7 +108,6 @@ export class AuthService {
   }
 
   async refreshTokens(refreshToken: string): Promise<AuthTokens> {
-    // Find the refresh token in database
     const storedToken = await this.prisma.refreshToken.findUnique({
       where: { token: refreshToken },
       include: { user: true },
@@ -113,26 +117,21 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    // Check if token is expired
     if (new Date() > storedToken.expiresAt) {
-      // Delete expired token
       await this.prisma.refreshToken.delete({
         where: { id: storedToken.id },
       });
       throw new UnauthorizedException('Refresh token expired');
     }
 
-    // Check if user is still active
     if (!storedToken.user.isActive) {
       throw new UnauthorizedException('User account is inactive');
     }
 
-    // Delete old refresh token
     await this.prisma.refreshToken.delete({
       where: { id: storedToken.id },
     });
 
-    // Generate new tokens
     return this.generateTokens(storedToken.user);
   }
 
@@ -166,9 +165,8 @@ export class AuthService {
       }),
     ]);
 
-    // Store refresh token in database
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
     await this.prisma.refreshToken.create({
       data: {
@@ -197,5 +195,87 @@ export class AuthService {
       throw new BadRequestException('User not found');
     }
     return this.sanitizeUser(user);
+  }
+
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<{ message: string }> {
+    const { email } = forgotPasswordDto;
+
+    const user = await this.usersService.findByEmail(email);
+
+    if (!user || !user.isActive) {
+      return { message: 'If an account exists with this email, you will receive a password reset link.' };
+    }
+
+    await this.prisma.passwordResetToken.deleteMany({
+      where: { userId: user.id },
+    });
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1);
+
+    await this.prisma.passwordResetToken.create({
+      data: {
+        token: hashedToken,
+        userId: user.id,
+        expiresAt,
+      },
+    });
+    try {
+      await axios.post(`${this.notificationServiceUrl}/api/notifications/password-reset`, {
+        firstName: user.firstName,
+        email: user.email,
+        resetToken,
+        resetUrl: `${this.configService.get('FRONTEND_URL')}/reset-password?token=${resetToken}`,
+      });
+    } catch (error) {
+      this.logger.error('Failed to send password reset notification', error);
+    }
+
+    return { message: 'If an account exists with this email, you will receive a password reset link.' };
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<{ message: string }> {
+    const { token, newPassword } = resetPasswordDto;
+
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const storedToken = await this.prisma.passwordResetToken.findFirst({
+      where: {
+        token: hashedToken,
+        used: false,
+        expiresAt: { gt: new Date() },
+      },
+      include: { user: true },
+    });
+
+    if (!storedToken) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.usersService.update(storedToken.userId, {
+      password: hashedPassword,
+    });
+
+    await this.prisma.passwordResetToken.update({
+      where: { id: storedToken.id },
+      data: { used: true },
+    });
+
+    await this.logoutAll(storedToken.userId);
+    try {
+      await axios.post(`${this.notificationServiceUrl}/api/notifications/password-changed`, {
+        firstName: storedToken.user.firstName,
+        email: storedToken.user.email,
+      });
+    } catch (error) {
+      this.logger.error('Failed to send password changed notification', error);
+    }
+
+    return { message: 'Password has been reset successfully' };
   }
 }

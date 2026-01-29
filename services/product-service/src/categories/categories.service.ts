@@ -1,10 +1,16 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(CategoriesService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private redisService: RedisService,
+  ) {}
 
   async create(createCategoryDto: CreateCategoryDto) {
     const existing = await this.prisma.category.findFirst({
@@ -20,23 +26,42 @@ export class CategoriesService {
       throw new ConflictException('Category with this name or slug already exists');
     }
 
-    return this.prisma.category.create({
+    const category = await this.prisma.category.create({
       data: createCategoryDto,
       include: { parent: true, children: true },
     });
+
+    await this.redisService.delPattern('categories:*');
+
+    return category;
   }
 
   async findAll(includeInactive = false) {
+    const cacheKey = `categories:all:${includeInactive}`;
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
     const where = includeInactive ? {} : { isActive: true };
 
-    return this.prisma.category.findMany({
+    const categories = await this.prisma.category.findMany({
       where,
       include: { parent: true, children: true, _count: { select: { products: true } } },
       orderBy: { name: 'asc' },
     });
+
+    await this.redisService.set(cacheKey, JSON.stringify(categories), 600);
+    return categories;
   }
 
   async findOne(id: string) {
+    const cacheKey = `category:${id}`;
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
     const category = await this.prisma.category.findUnique({
       where: { id },
       include: { parent: true, children: true, _count: { select: { products: true } } },
@@ -46,6 +71,7 @@ export class CategoriesService {
       throw new NotFoundException('Category not found');
     }
 
+    await this.redisService.set(cacheKey, JSON.stringify(category), 600);
     return category;
   }
 
@@ -85,11 +111,16 @@ export class CategoriesService {
       }
     }
 
-    return this.prisma.category.update({
+    const updated = await this.prisma.category.update({
       where: { id },
       data: updateCategoryDto,
       include: { parent: true, children: true },
     });
+
+    await this.redisService.del(`category:${id}`);
+    await this.redisService.delPattern('categories:*');
+
+    return updated;
   }
 
   async remove(id: string) {
@@ -103,10 +134,21 @@ export class CategoriesService {
       throw new ConflictException('Cannot delete category with products');
     }
 
-    return this.prisma.category.delete({ where: { id } });
+    const deleted = await this.prisma.category.delete({ where: { id } });
+
+    await this.redisService.del(`category:${id}`);
+    await this.redisService.delPattern('categories:*');
+
+    return deleted;
   }
 
   async getTree() {
+    const cacheKey = 'categories:tree';
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
     const categories = await this.prisma.category.findMany({
       where: { isActive: true, parentId: null },
       include: {
@@ -120,6 +162,7 @@ export class CategoriesService {
       orderBy: { name: 'asc' },
     });
 
+    await this.redisService.set(cacheKey, JSON.stringify(categories), 600);
     return categories;
   }
 }

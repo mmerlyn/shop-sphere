@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+  <h1>Order Confirmation</h1>
+  <p>Hi {{firstName}},</p>
+  <p>Thank you for your order! Your order #{{orderNumber}} has been confirmed.</p>
+  <p>Order Date: {{orderDate}}</p>
+  <h2>Order Items</h2>
+  <table>
+    {{#each items}}
+    <tr>
+      <td>{{this.name}}</td>
+      <td>Qty: {{this.quantity}}</td>
+      <td>${{this.price}}</td>
+    </tr>
+    {{/each}}
+  </table>
+  <p>Subtotal: ${{subtotal}}</p>
+  <p>Shipping: ${{shipping}}</p>
+  <p>Tax: ${{tax}}</p>
+  <p>Discount: -${{discount}}</p>
+  <p><strong>Total: ${{total}}</strong></p>
+  <p><a href="{{orderUrl}}">View Order</a></p>
+</body>
+</html>

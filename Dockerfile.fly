@@ -1,0 +1,27 @@
+FROM node:18-alpine
+
+RUN npm install -g pm2
+RUN apk add --no-cache openssl redis
+
+WORKDIR /app
+
+COPY package*.json ./
+COPY tsconfig.json ./
+COPY services ./services
+
+RUN rm -rf services/*/dist services/*/node_modules
+
+RUN cd services/api-gateway && npm install && npm run build
+RUN cd services/user-service && npm install && npx prisma generate && npm run build && cp -r src/generated dist/src/
+RUN cd services/product-service && npm install && npx prisma generate && npm run build && cp -r src/generated dist/src/
+RUN cd services/cart-service && npm install && npm run build
+RUN cd services/order-service && npm install && npx prisma generate && npm run build && cp -r src/generated dist/src/
+RUN cd services/notification-service && npm install && npm run build
+RUN cd services/payment-service && npm install && npx prisma generate && npm run build && cp -r src/generated dist/
+RUN cd services/review-service && npm install && npx prisma generate && npm run build && cp -r src/generated dist/
+
+COPY ecosystem.config.js ./
+
+EXPOSE 8000
+
+CMD ["pm2-runtime", "ecosystem.config.js"]

@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Payment {
+  id               String        @id @default(uuid())
+  orderId          String
+  userId           String
+  stripePaymentId  String?       @unique
+  amount           Decimal       @db.Decimal(10, 2)
+  currency         String        @default("usd")
+  status           PaymentStatus @default(PENDING)
+  metadata         Json?
+  refundedAmount   Decimal?      @db.Decimal(10, 2)
+  failureReason    String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([stripePaymentId])
+  @@index([status])
+  @@index([userId, createdAt])
+  @@index([orderId, status])
+  @@map("payments")
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}

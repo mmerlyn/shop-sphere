@@ -1,0 +1,49 @@
+{
+  "name": "shop-sphere",
+  "version": "1.0.0",
+  "description": "Microservices-based e-commerce platform",
+  "private": true,
+  "workspaces": [
+    "services/*"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm run install:services",
+    "install:services": "cd services/user-service && npm install && cd ../product-service && npm install && cd ../cart-service && npm install && cd ../order-service && npm install && cd ../api-gateway && npm install && cd ../notification-service && npm install && cd ../payment-service && npm install && cd ../review-service && npm install",
+    "dev:user": "cd services/user-service && npm run start:dev",
+    "dev:product": "cd services/product-service && npm run start:dev",
+    "dev:cart": "cd services/cart-service && npm run start:dev",
+    "dev:order": "cd services/order-service && npm run start:dev",
+    "dev:gateway": "cd services/api-gateway && npm run start:dev",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "migrate:user": "cd services/user-service && npx prisma migrate dev",
+    "migrate:product": "cd services/product-service && npx prisma migrate dev",
+    "migrate:order": "cd services/order-service && npx prisma migrate dev",
+    "test": "npm run test --workspaces",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write \"**/*.{ts,json,md}\"",
+    "dev:notification": "cd services/notification-service && npm run start:dev",
+    "dev:payment": "cd services/payment-service && npm run start:dev",
+    "dev:review": "cd services/review-service && npm run start:dev",
+    "migrate:payment": "cd services/payment-service && npx prisma migrate dev",
+    "migrate:review": "cd services/review-service && npx prisma migrate dev",
+    "seed:products": "cd services/product-service && ts-node prisma/seed-million.ts",
+    "seed:orders": "cd services/order-service && ts-node prisma/seed-orders.ts",
+    "load-test": "bash load-tests/run-all.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.42.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.1.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

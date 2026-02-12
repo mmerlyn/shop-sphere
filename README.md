@@ -97,28 +97,6 @@ This is where the trade-off of synchronous REST shows up. Steps 4-7 are sequenti
 
 ---
 
-## Tech Stack
-
-| Layer             | Technology                                 | Why                                                               |
-| ----------------- | ------------------------------------------ | ----------------------------------------------------------------- |
-| **Frontend**      | Next.js 16, React 19, TypeScript           | SSR for SEO, React Server Components, type safety                 |
-| **UI**            | Tailwind CSS, Radix UI, Lucide Icons       | Utility-first styling, accessible primitives                      |
-| **Forms**         | React Hook Form + Zod                      | Performant forms with schema validation                           |
-| **Backend**       | NestJS 10, TypeScript                      | Opinionated structure, DI container, decorators for clean routing |
-| **ORM**           | Prisma 5                                   | Type-safe queries, migrations, schema-as-code                     |
-| **Auth**          | JWT (access + refresh tokens), Passport.js | Stateless auth, multi-device support                              |
-| **Databases**     | PostgreSQL 15 (x5)                         | ACID compliance, one per service                                  |
-| **Cache**         | Redis 7                                    | Session store, cart persistence, response caching                 |
-| **Search**        | Elasticsearch 8.11                         | Full-text product search, way faster than LIKE queries            |
-| **Payments**      | Stripe (Payment Intents API)               | PCI-compliant, webhook-driven status updates                      |
-| **Email**         | Nodemailer + Handlebars                    | Templated transactional emails                                    |
-| **Images**        | Cloudinary                                 | CDN-backed image uploads, transformations                         |
-| **Load Balancer** | Nginx                                      | least_conn balancing, rate limiting, gzip                         |
-| **Containers**    | Docker + Docker Compose                    | 19 containers, isolated environments                              |
-| **Process Mgmt**  | PM2                                        | Production process management for single-VM deploys               |
-
----
-
 ## Features
 
 ### Storefront
@@ -172,6 +150,111 @@ This is where the trade-off of synchronous REST shows up. Steps 4-7 are sequenti
 
 ---
 
+## Design Trade-offs
+
+Every architecture decision has a cost. These are the ones I thought about the most:
+
+| Decision | Alternative Considered | Why I Went This Way | The Trade-off |
+|----------|----------------------|---------------------|---------------|
+| JWT (stateless) | Server-side sessions (Redis) | Scales horizontally without sticky sessions. Any gateway replica validates the token. | Can't instantly revoke access tokens. Mitigated with short 15min expiry + refresh token revocation in DB. |
+| Redis for carts | PostgreSQL | Carts are high-frequency, ephemeral data. Redis gives sub-ms reads and natural TTL expiry. | If Redis goes down, carts are lost. Acceptable since carts are easily rebuilt. |
+| Elasticsearch for search | PostgreSQL full-text (`tsvector`) | Need fuzzy matching, typo tolerance, and relevance scoring. ES handles this out of the box. | Two sources of truth for product data. ES is a read-optimized mirror, Postgres stays authoritative. |
+| Database-per-service | Shared database | Independent schema evolution. No accidental coupling through joins. | Operational overhead of 5 Postgres instances. Can't do cross-service joins; need data snapshots. |
+| Synchronous REST | Message queue (RabbitMQ) | Simpler to debug and trace. Request-response fits the current call patterns. | Cascading latency. If Notification Service is slow, the order request is slow. |
+| Nginx load balancing | Application-level (e.g., Node.js cluster) | Nginx handles rate limiting, gzip, keepalive, and health checks at infra layer. | Extra component to configure. Worth it to keep these concerns out of app code. |
+
+---
+
+## Tech Stack
+
+| Layer             | Technology                                 | Why                                                               |
+| ----------------- | ------------------------------------------ | ----------------------------------------------------------------- |
+| **Frontend**      | Next.js 16, React 19, TypeScript           | SSR for SEO, React Server Components, type safety                 |
+| **UI**            | Tailwind CSS, Radix UI, Lucide Icons       | Utility-first styling, accessible primitives                      |
+| **Forms**         | React Hook Form + Zod                      | Performant forms with schema validation                           |
+| **Backend**       | NestJS 10, TypeScript                      | Opinionated structure, DI container, decorators for clean routing |
+| **ORM**           | Prisma 5                                   | Type-safe queries, migrations, schema-as-code                     |
+| **Auth**          | JWT (access + refresh tokens), Passport.js | Stateless auth, multi-device support                              |
+| **Databases**     | PostgreSQL 15 (x5)                         | ACID compliance, one per service                                  |
+| **Cache**         | Redis 7                                    | Session store, cart persistence, response caching                 |
+| **Search**        | Elasticsearch 8.11                         | Full-text product search, way faster than LIKE queries            |
+| **Payments**      | Stripe (Payment Intents API)               | PCI-compliant, webhook-driven status updates                      |
+| **Email**         | Nodemailer + Handlebars                    | Templated transactional emails                                    |
+| **Images**        | Cloudinary                                 | CDN-backed image uploads, transformations                         |
+| **Load Balancer** | Nginx                                      | least_conn balancing, rate limiting, gzip                         |
+| **Containers**    | Docker + Docker Compose                    | 19 containers, isolated environments                              |
+| **Process Mgmt**  | PM2                                        | Production process management for single-VM deploys               |
+
+---
+
+## Testing & Performance
+
+### Unit Tests
+
+Each service has isolated Jest tests. Prisma-backed services test against mocked DB layers.
+
+```bash
+# Run tests for a specific service
+cd services/user-service && npm test
+
+# With coverage report
+npm run test:cov
+```
+
+### Load Testing (k6)
+
+I wrote 4 k6 scenarios to validate performance under load and catch regressions. Tests ramp from 50 to 500 virtual users over 5 minutes.
+
+| Scenario | What It Tests | Threshold | Target |
+|----------|--------------|-----------|--------|
+| **Product Browse** | Listing, detail pages, search | `p(95)` | < 100ms |
+| **Search Benchmark** | Elasticsearch text search, filtered search, price range, combined queries | `p(95)` | < 50ms |
+| **CRUD Operations** | Read/write across services (authenticated) | `p(95)` | < 80ms |
+| **Order Flow** | Full transaction flow at 2,000 iterations/sec (constant arrival rate, 500 pre-allocated VUs) | `p(95)` | < 100ms |
+
+```bash
+# Run all scenarios
+cd load-tests && ./run-all.sh
+
+# Run individual scenario
+k6 run ./load-tests/scenarios/search-benchmark.js
+```
+
+All scenarios enforce strict error thresholds (`< 1%` for browse/search/CRUD, `< 5%` for order flow). The order flow scenario uses `constant-arrival-rate` executor at 2,000 req/s to simulate sustained checkout traffic.
+
+### CI/CD Pipeline
+
+GitHub Actions runs on every push and PR to `main`:
+
+- **Lint Frontend** — ESLint on the Next.js codebase
+- **Build Frontend** — Full Next.js production build
+- **Build Services** — All 8 NestJS services built in parallel (matrix strategy), with Prisma client generation for DB-backed services
+
+Deployment is automated:
+- **Frontend** → Vercel (on push to `main`)
+- **Backend** → Fly.io (on push to `main`)
+
+---
+
+## How I'd Scale This Further
+
+Things I'd tackle to take this from "works well" to "production-grade at scale":
+
+**Reliability**
+- **Message broker (RabbitMQ/Kafka)** to decouple order creation from notification/payment flows. Right now, if the Notification Service is down, the order request is slower. Async messaging fixes this.
+- **Circuit breaker pattern** so the gateway fails fast when a downstream service is struggling, instead of blocking on timeouts. Something like `opossum` for Node.js.
+- **Distributed tracing (Jaeger/Zipkin)** because debugging request flows across 8 services with just logs is not sustainable. Correlation IDs help, but proper tracing with flame graphs would be the real solution.
+
+**Performance**
+- **gRPC for inter-service calls** since HTTP/JSON adds serialization overhead on every hop. Protocol Buffers would reduce payload sizes and enforce contracts between services.
+- **CQRS for Order Service** to separate read/write models. Writes need strong consistency on the primary; high-volume order list queries could run against a read replica.
+- **WebSocket for real-time order tracking** instead of the current polling approach. A persistent connection from the frontend would give instant status updates.
+
+**Infrastructure**
+- **Kubernetes** for service discovery, auto-scaling, rolling deployments, and health-based routing. Docker Compose works for dev and PM2 handles a single VM, but k8s is the right answer for actual production.
+
+---
+
 ## Project Structure
 
 ```
@@ -203,6 +286,22 @@ shop-sphere/
 ├── Dockerfile.fly               # Single-container deploy for Fly.io
 └── ecosystem.config.js          # PM2 process config
 ```
+
+---
+
+## API Overview
+
+All requests go through the API Gateway at port 8000. Auth-protected routes require a `Bearer` token.
+
+| Service        | Endpoints                                                                                            | Description                                |
+| -------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| **Auth**       | `POST /api/auth/register`, `login`, `refresh`, `logout`, `forgot-password`, `reset-password`         | JWT-based auth with refresh token rotation |
+| **Products**   | `GET /api/products`, `GET /api/products/featured`, `GET /api/products/slug/:slug`, `POST/PUT/DELETE` | Full CRUD, search, filtering, pagination   |
+| **Categories** | `GET /api/categories`, `POST /api/categories`                                                        | Hierarchical categories with parent-child  |
+| **Cart**       | `GET /api/cart`, `POST /api/cart/:id/items`, `PUT`, `DELETE`, coupon endpoints                       | Redis-backed, guest + authenticated        |
+| **Orders**     | `POST /api/orders`, `GET /api/orders`, `PATCH /api/orders/:id/status`                                | Full order lifecycle management            |
+| **Payments**   | `POST /api/payments/create-intent`, `confirm`, `webhook`, `refund`                                   | Stripe Payment Intents flow                |
+| **Reviews**    | `POST /api/reviews`, `GET /api/reviews/product/:id`, `helpful` voting                                | Verified purchase tracking                 |
 
 ---
 
@@ -324,109 +423,10 @@ FRONTEND_URL=http://localhost:3000
 
 ---
 
-## API Overview
-
-All requests go through the API Gateway at port 8000. Auth-protected routes require a `Bearer` token.
-
-| Service        | Endpoints                                                                                            | Description                                |
-| -------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| **Auth**       | `POST /api/auth/register`, `login`, `refresh`, `logout`, `forgot-password`, `reset-password`         | JWT-based auth with refresh token rotation |
-| **Products**   | `GET /api/products`, `GET /api/products/featured`, `GET /api/products/slug/:slug`, `POST/PUT/DELETE` | Full CRUD, search, filtering, pagination   |
-| **Categories** | `GET /api/categories`, `POST /api/categories`                                                        | Hierarchical categories with parent-child  |
-| **Cart**       | `GET /api/cart`, `POST /api/cart/:id/items`, `PUT`, `DELETE`, coupon endpoints                       | Redis-backed, guest + authenticated        |
-| **Orders**     | `POST /api/orders`, `GET /api/orders`, `PATCH /api/orders/:id/status`                                | Full order lifecycle management            |
-| **Payments**   | `POST /api/payments/create-intent`, `confirm`, `webhook`, `refund`                                   | Stripe Payment Intents flow                |
-| **Reviews**    | `POST /api/reviews`, `GET /api/reviews/product/:id`, `helpful` voting                                | Verified purchase tracking                 |
-
----
-
-## Design Trade-offs
-
-Every architecture decision has a cost. These are the ones I thought about the most:
-
-| Decision | Alternative Considered | Why I Went This Way | The Trade-off |
-|----------|----------------------|---------------------|---------------|
-| JWT (stateless) | Server-side sessions (Redis) | Scales horizontally without sticky sessions. Any gateway replica validates the token. | Can't instantly revoke access tokens. Mitigated with short 15min expiry + refresh token revocation in DB. |
-| Redis for carts | PostgreSQL | Carts are high-frequency, ephemeral data. Redis gives sub-ms reads and natural TTL expiry. | If Redis goes down, carts are lost. Acceptable since carts are easily rebuilt. |
-| Elasticsearch for search | PostgreSQL full-text (`tsvector`) | Need fuzzy matching, typo tolerance, and relevance scoring. ES handles this out of the box. | Two sources of truth for product data. ES is a read-optimized mirror, Postgres stays authoritative. |
-| Database-per-service | Shared database | Independent schema evolution. No accidental coupling through joins. | Operational overhead of 5 Postgres instances. Can't do cross-service joins; need data snapshots. |
-| Synchronous REST | Message queue (RabbitMQ) | Simpler to debug and trace. Request-response fits the current call patterns. | Cascading latency. If Notification Service is slow, the order request is slow. |
-| Nginx load balancing | Application-level (e.g., Node.js cluster) | Nginx handles rate limiting, gzip, keepalive, and health checks at infra layer. | Extra component to configure. Worth it to keep these concerns out of app code. |
-
----
-
-## Testing & Performance
-
-### Unit Tests
-
-Each service has isolated Jest tests. Prisma-backed services test against mocked DB layers.
-
-```bash
-# Run tests for a specific service
-cd services/user-service && npm test
-
-# With coverage report
-npm run test:cov
-```
-
-### Load Testing (k6)
-
-I wrote 4 k6 scenarios to validate performance under load and catch regressions. Tests ramp from 50 to 500 virtual users over 5 minutes.
-
-| Scenario | What It Tests | Threshold | Target |
-|----------|--------------|-----------|--------|
-| **Product Browse** | Listing, detail pages, search | `p(95)` | < 100ms |
-| **Search Benchmark** | Elasticsearch text search, filtered search, price range, combined queries | `p(95)` | < 50ms |
-| **CRUD Operations** | Read/write across services (authenticated) | `p(95)` | < 80ms |
-| **Order Flow** | Full transaction flow at 2,000 iterations/sec (constant arrival rate, 500 pre-allocated VUs) | `p(95)` | < 100ms |
-
-```bash
-# Run all scenarios
-cd load-tests && ./run-all.sh
-
-# Run individual scenario
-k6 run ./load-tests/scenarios/search-benchmark.js
-```
-
-All scenarios enforce strict error thresholds (`< 1%` for browse/search/CRUD, `< 5%` for order flow). The order flow scenario uses `constant-arrival-rate` executor at 2,000 req/s to simulate sustained checkout traffic.
-
-### CI/CD Pipeline
-
-GitHub Actions runs on every push and PR to `main`:
-
-- **Lint Frontend** — ESLint on the Next.js codebase
-- **Build Frontend** — Full Next.js production build
-- **Build Services** — All 8 NestJS services built in parallel (matrix strategy), with Prisma client generation for DB-backed services
-
-Deployment is automated:
-- **Frontend** → Vercel (on push to `main`)
-- **Backend** → Fly.io (on push to `main`)
-
----
-
-## How I'd Scale This Further
-
-Things I'd tackle to take this from "works well" to "production-grade at scale":
-
-**Reliability**
-- **Message broker (RabbitMQ/Kafka)** to decouple order creation from notification/payment flows. Right now, if the Notification Service is down, the order request is slower. Async messaging fixes this.
-- **Circuit breaker pattern** so the gateway fails fast when a downstream service is struggling, instead of blocking on timeouts. Something like `opossum` for Node.js.
-- **Distributed tracing (Jaeger/Zipkin)** because debugging request flows across 8 services with just logs is not sustainable. Correlation IDs help, but proper tracing with flame graphs would be the real solution.
-
-**Performance**
-- **gRPC for inter-service calls** since HTTP/JSON adds serialization overhead on every hop. Protocol Buffers would reduce payload sizes and enforce contracts between services.
-- **CQRS for Order Service** to separate read/write models. Writes need strong consistency on the primary; high-volume order list queries could run against a read replica.
-- **WebSocket for real-time order tracking** instead of the current polling approach. A persistent connection from the frontend would give instant status updates.
-
-**Infrastructure**
-- **Kubernetes** for service discovery, auto-scaling, rolling deployments, and health-based routing. Docker Compose works for dev and PM2 handles a single VM, but k8s is the right answer for actual production.
-
----
-
 ## License
 
 [MIT](LICENSE)
 
 ---
 
-Built by **[Merlyn Mercy Lona](https://www.linkedin.com/in/merlynmercylona/)** · [GitHub](https://github.com/mmerlyn)
+Built by **Merlyn Mercy Lona** · [LinkedIn](https://www.linkedin.com/in/merlynmercylona/) · [GitHub](https://github.com/mmerlyn)

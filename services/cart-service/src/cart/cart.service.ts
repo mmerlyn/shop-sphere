@@ -8,7 +8,16 @@ import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../redis/redis.service';
 import { AddItemDto, UpdateItemDto } from './dto';
 import axios from 'axios';
+import * as http from 'http';
+import * as https from 'https';
 import { v4 as uuidv4 } from 'uuid';
+
+// Pooled keep-alive client for catalog lookups during add-to-cart.
+const httpClient = axios.create({
+  httpAgent: new http.Agent({ keepAlive: true, maxSockets: 256, keepAliveMsecs: 30000 }),
+  httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 256, keepAliveMsecs: 30000 }),
+  timeout: 15000,
+});
 
 export interface CartItem {
   productId: string;
@@ -242,7 +251,8 @@ export class CartService {
   async applyCoupon(cartId: string, code: string): Promise<Cart> {
     const cart = await this.getCart(cartId);
 
-    // Simple coupon logic - in production, this would call a coupon service
+    // Coupon codes are matched against a fixed rule set here rather than a separate
+    // coupon service — not enough distinct discount logic yet to justify the split.
     const discount = this.calculateCouponDiscount(code, cart.subtotal);
 
     if (discount === 0) {
@@ -346,7 +356,7 @@ export class CartService {
 
   private async fetchProduct(productId: string): Promise<any | null> {
     try {
-      const response = await axios.get(
+      const response = await httpClient.get(
         `${this.productServiceUrl}/api/products/${productId}`,
       );
       return response.data;

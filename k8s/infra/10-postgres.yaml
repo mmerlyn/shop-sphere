@@ -1,0 +1,162 @@
+# Database-per-service: one PostgreSQL instance per data-owning service.
+# users, catalog, orders, inventory, reviews each get their own DB — no sharing, ever.
+# Discovered by other pods via k8s DNS: postgres-<svc>.shopsphere.svc.cluster.local
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: shopsphere
+data:
+  POSTGRES_USER: shopsphere
+  POSTGRES_PASSWORD: shopsphere
+---
+# ---- reviews DB ----
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: postgres-reviews, namespace: shopsphere }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: postgres-reviews } }
+  template:
+    metadata: { labels: { app: postgres-reviews } }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          envFrom: [{ configMapRef: { name: postgres-init } }]
+          env: [{ name: POSTGRES_DB, value: reviews }]
+          ports: [{ containerPort: 5432 }]
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "shopsphere"] }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
+      volumes: [{ name: data, emptyDir: {} }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: postgres-reviews, namespace: shopsphere }
+spec:
+  selector: { app: postgres-reviews }
+  ports: [{ port: 5432, targetPort: 5432 }]
+---
+# ---- users DB ----
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: postgres-users, namespace: shopsphere }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: postgres-users } }
+  template:
+    metadata: { labels: { app: postgres-users } }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          envFrom: [{ configMapRef: { name: postgres-init } }]
+          env: [{ name: POSTGRES_DB, value: users }]
+          ports: [{ containerPort: 5432 }]
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "shopsphere"] }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
+      volumes: [{ name: data, emptyDir: {} }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: postgres-users, namespace: shopsphere }
+spec:
+  selector: { app: postgres-users }
+  ports: [{ port: 5432, targetPort: 5432 }]
+---
+# ---- catalog DB ----
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: postgres-catalog, namespace: shopsphere }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: postgres-catalog } }
+  template:
+    metadata: { labels: { app: postgres-catalog } }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          envFrom: [{ configMapRef: { name: postgres-init } }]
+          env: [{ name: POSTGRES_DB, value: catalog }]
+          ports: [{ containerPort: 5432 }]
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "shopsphere"] }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
+      volumes: [{ name: data, emptyDir: {} }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: postgres-catalog, namespace: shopsphere }
+spec:
+  selector: { app: postgres-catalog }
+  ports: [{ port: 5432, targetPort: 5432 }]
+---
+# ---- orders DB ----
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: postgres-orders, namespace: shopsphere }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: postgres-orders } }
+  template:
+    metadata: { labels: { app: postgres-orders } }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          envFrom: [{ configMapRef: { name: postgres-init } }]
+          env: [{ name: POSTGRES_DB, value: orders }]
+          ports: [{ containerPort: 5432 }]
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "shopsphere"] }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
+      volumes: [{ name: data, emptyDir: {} }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: postgres-orders, namespace: shopsphere }
+spec:
+  selector: { app: postgres-orders }
+  ports: [{ port: 5432, targetPort: 5432 }]
+---
+# ---- inventory DB ----
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: postgres-inventory, namespace: shopsphere }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: postgres-inventory } }
+  template:
+    metadata: { labels: { app: postgres-inventory } }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          envFrom: [{ configMapRef: { name: postgres-init } }]
+          env: [{ name: POSTGRES_DB, value: inventory }]
+          ports: [{ containerPort: 5432 }]
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "shopsphere"] }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
+      volumes: [{ name: data, emptyDir: {} }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: postgres-inventory, namespace: shopsphere }
+spec:
+  selector: { app: postgres-inventory }
+  ports: [{ port: 5432, targetPort: 5432 }]

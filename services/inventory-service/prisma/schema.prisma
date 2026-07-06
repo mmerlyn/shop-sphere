@@ -1,0 +1,22 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+  output        = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Inventory owns stock levels — keyed by productId (owned by Catalog).
+// available = on-hand sellable; reserved = held by in-flight checkouts.
+model InventoryItem {
+  productId String   @id
+  available Int      @default(0)
+  reserved  Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@index([available])
+  @@map("inventory_items")
+}

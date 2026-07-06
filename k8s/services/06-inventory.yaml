@@ -1,0 +1,50 @@
+# Inventory service — owns stock levels in its own DB. Decrements on checkout,
+# restocks on cancel. Called by Orders over REST (DNS-discovered).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-svc
+  namespace: shopsphere
+  labels: { app: inventory-svc }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: inventory-svc } }
+  template:
+    metadata: { labels: { app: inventory-svc } }
+    spec:
+      containers:
+        - name: inventory-svc
+          image: shopsphere/inventory-service:local
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3008 }]
+          env:
+            - { name: PORT, value: "3008" }
+            - { name: DATABASE_URL, value: "postgresql://shopsphere:shopsphere@postgres-inventory:5432/inventory?schema=public&connection_limit=30&pool_timeout=30" }
+          envFrom:
+            - configMapRef: { name: app-config }
+            - secretRef: { name: app-secrets }
+          resources:
+            requests: { cpu: "150m", memory: "256Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
+          startupProbe:
+            httpGet: { path: /api/health, port: 3008 }
+            periodSeconds: 5
+            failureThreshold: 40
+          livenessProbe:
+            httpGet: { path: /api/health, port: 3008 }
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 10
+          readinessProbe:
+            httpGet: { path: /api/health/ready, port: 3008 }
+            periodSeconds: 10
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-svc
+  namespace: shopsphere
+spec:
+  selector: { app: inventory-svc }
+  ports: [{ port: 3008, targetPort: 3008 }]

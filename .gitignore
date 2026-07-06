@@ -37,7 +37,6 @@ Thumbs.db
 # Testing
 coverage/
 .nyc_output/
-load-tests/results/
 
 # Prisma
 *.db
@@ -49,5 +48,7 @@ load-tests/results/
 *.temp
 temporary.md
 .nest
-guide.md
-guide/
+
+# Personal / job-application files and internal notes (never push these)
+*.pdf
+notes/

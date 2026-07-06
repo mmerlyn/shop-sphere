@@ -1,0 +1,40 @@
+# Shared config for all services. Service URLs use Kubernetes DNS names
+# (http://<service>.<namespace>.svc.cluster.local, shortened to http://<service>:<port>)
+# — this is the "DNS-based service discovery" with no hardcoded IPs.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: shopsphere
+data:
+  NODE_ENV: "production"
+  FRONTEND_URL: "http://localhost:3000"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  ELASTICSEARCH_NODE: "http://elasticsearch:9200"
+  CART_TTL: "604800"
+  THROTTLE_TTL: "60"
+  THROTTLE_LIMIT: "100"
+  JWT_EXPIRES_IN: "15m"
+  JWT_REFRESH_EXPIRES_IN: "7d"
+  # ---- service discovery (k8s DNS) ----
+  USER_SERVICE_URL: "http://user-svc:3001"
+  PRODUCT_SERVICE_URL: "http://catalog-svc:3002"
+  CART_SERVICE_URL: "http://cart-svc:3003"
+  ORDER_SERVICE_URL: "http://order-svc:3004"
+  NOTIFICATION_SERVICE_URL: "http://notification-svc:3005"
+  PAYMENT_SERVICE_URL: "http://localhost:3006"
+  REVIEW_SERVICE_URL: "http://review-svc:3007"
+  INVENTORY_SERVICE_URL: "http://inventory-svc:3008"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: shopsphere
+type: Opaque
+stringData:
+  JWT_SECRET: "shopsphere-dev-jwt-secret-change-in-prod"
+  JWT_REFRESH_SECRET: "shopsphere-dev-jwt-refresh-secret-change-in-prod"
+  POSTGRES_USER: "shopsphere"
+  POSTGRES_PASSWORD: "shopsphere"

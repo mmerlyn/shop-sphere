@@ -1,0 +1,64 @@
+# Redis backs the Cart service (ephemeral carts with TTL expiry).
+# Elasticsearch backs Catalog search (CQRS read model — PG writes replicate here).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: redis, namespace: shopsphere }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: redis } }
+  template:
+    metadata: { labels: { app: redis } }
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          # LRU eviction, 256MB cap — carts are ephemeral, TTL-expired
+          args: ["--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+          ports: [{ containerPort: 6379 }]
+          readinessProbe:
+            exec: { command: ["redis-cli", "ping"] }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata: { name: redis, namespace: shopsphere }
+spec:
+  selector: { app: redis }
+  ports: [{ port: 6379, targetPort: 6379 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: elasticsearch, namespace: shopsphere }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: elasticsearch } }
+  template:
+    metadata: { labels: { app: elasticsearch } }
+    spec:
+      containers:
+        - name: elasticsearch
+          image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+          env:
+            - { name: discovery.type, value: single-node }
+            - { name: xpack.security.enabled, value: "false" }
+            - { name: ES_JAVA_OPTS, value: "-Xms1g -Xmx1g" }
+          ports: [{ containerPort: 9200 }]
+          readinessProbe:
+            httpGet: { path: /_cluster/health, port: 9200 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 12
+          resources:
+            requests: { memory: "1200Mi" }
+            limits: { memory: "2Gi" }
+          volumeMounts: [{ name: data, mountPath: /usr/share/elasticsearch/data }]
+      volumes: [{ name: data, emptyDir: {} }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: elasticsearch, namespace: shopsphere }
+spec:
+  selector: { app: elasticsearch }
+  ports: [{ port: 9200, targetPort: 9200 }]

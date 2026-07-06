@@ -6,7 +6,7 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY prisma ./prisma/
-RUN npm install
+RUN npm install --legacy-peer-deps
 RUN npx prisma generate
 
 COPY . .
@@ -22,6 +22,8 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/src/generated ./dist/generated
+COPY --from=builder /app/src/generated ./dist/src/generated
 
 EXPOSE 3004
 

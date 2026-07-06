@@ -1,0 +1,50 @@
+# Orders service — owns the orders DB. Orchestrates checkout: reads cart,
+# writes order, decrements stock via Inventory (REST). HPA target: 2 -> 6.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-svc
+  namespace: shopsphere
+  labels: { app: order-svc }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: order-svc } }
+  template:
+    metadata: { labels: { app: order-svc } }
+    spec:
+      containers:
+        - name: order-svc
+          image: shopsphere/order-service:local
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3004 }]
+          env:
+            - { name: PORT, value: "3004" }
+            - { name: DATABASE_URL, value: "postgresql://shopsphere:shopsphere@postgres-orders:5432/orders?schema=public&connection_limit=30&pool_timeout=30" }
+          envFrom:
+            - configMapRef: { name: app-config }
+            - secretRef: { name: app-secrets }
+          resources:
+            requests: { cpu: "150m", memory: "256Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
+          startupProbe:
+            httpGet: { path: /api/health, port: 3004 }
+            periodSeconds: 5
+            failureThreshold: 40
+          livenessProbe:
+            httpGet: { path: /api/health, port: 3004 }
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 10
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3004 }
+            periodSeconds: 10
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-svc
+  namespace: shopsphere
+spec:
+  selector: { app: order-svc }
+  ports: [{ port: 3004, targetPort: 3004 }]

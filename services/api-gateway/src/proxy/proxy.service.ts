@@ -1,10 +1,19 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios, { AxiosRequestConfig, Method } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, Method } from 'axios';
+import * as http from 'http';
+import * as https from 'https';
 
 @Injectable()
 export class ProxyService {
   private serviceUrls: Record<string, string>;
+  // Pooled, keep-alive client so forwarded requests reuse upstream TCP
+  // connections instead of opening a fresh socket each time (kills tail latency).
+  private readonly client: AxiosInstance = axios.create({
+    httpAgent: new http.Agent({ keepAlive: true, maxSockets: 256, keepAliveMsecs: 30000 }),
+    httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 256, keepAliveMsecs: 30000 }),
+    timeout: 15000,
+  });
 
   constructor(private configService: ConfigService) {
     this.serviceUrls = {
@@ -54,7 +63,7 @@ export class ProxyService {
     }
 
     try {
-      const response = await axios(config);
+      const response = await this.client(config);
       return response.data;
     } catch (error: any) {
       if (error.response) {

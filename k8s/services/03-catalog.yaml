@@ -1,0 +1,51 @@
+# Catalog service (product-service image) — owns the catalog DB and the
+# Elasticsearch read model. Writes go to PostgreSQL and replicate to ES (CQRS).
+# HPA target: scales 2 -> 6 under CPU load.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-svc
+  namespace: shopsphere
+  labels: { app: catalog-svc }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: catalog-svc } }
+  template:
+    metadata: { labels: { app: catalog-svc } }
+    spec:
+      containers:
+        - name: catalog-svc
+          image: shopsphere/product-service:local
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3002 }]
+          env:
+            - { name: PORT, value: "3002" }
+            - { name: DATABASE_URL, value: "postgresql://shopsphere:shopsphere@postgres-catalog:5432/catalog?schema=public" }
+          envFrom:
+            - configMapRef: { name: app-config }
+            - secretRef: { name: app-secrets }
+          resources:
+            requests: { cpu: "150m", memory: "256Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
+          startupProbe:
+            httpGet: { path: /api/health, port: 3002 }
+            periodSeconds: 5
+            failureThreshold: 40
+          livenessProbe:
+            httpGet: { path: /api/health, port: 3002 }
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 10
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3002 }
+            periodSeconds: 10
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-svc
+  namespace: shopsphere
+spec:
+  selector: { app: catalog-svc }
+  ports: [{ port: 3002, targetPort: 3002 }]

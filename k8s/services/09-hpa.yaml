@@ -1,0 +1,87 @@
+# Horizontal Pod Autoscalers — the autoscaling story.
+# Catalog and Orders are the load-bearing services in the k6 scenarios.
+# Under CPU pressure they scale 2 -> 6; watch with: kubectl get hpa -n shopsphere -w
+#
+# Cart also needs autoscaling: it's hit 3x per checkout iteration (create cart,
+# add item, order-svc's cart fetch) — more often than catalog or order — but had
+# no HPA at all until load testing exposed it as the actual checkout bottleneck.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: catalog-hpa
+  namespace: shopsphere
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: catalog-svc
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 15
+      policies:
+        - { type: Pods, value: 2, periodSeconds: 15 }
+    scaleDown:
+      stabilizationWindowSeconds: 120
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: order-hpa
+  namespace: shopsphere
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: order-svc
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 15
+      policies:
+        - { type: Pods, value: 2, periodSeconds: 15 }
+    scaleDown:
+      stabilizationWindowSeconds: 120
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cart-hpa
+  namespace: shopsphere
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cart-svc
+  minReplicas: 3
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 15
+      policies:
+        - { type: Pods, value: 2, periodSeconds: 15 }
+    scaleDown:
+      stabilizationWindowSeconds: 120

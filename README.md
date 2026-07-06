@@ -1,12 +1,14 @@
 # ShopSphere
 
-A microservices-based e-commerce platform built from scratch with **8 independent services** and database-per-service isolation (5 PostgreSQL instances, Redis, Elasticsearch). The system handles everything from product search (Elasticsearch) to payment processing (Stripe) to order fulfillment - all behind an API gateway with Nginx load balancing across 3 replicas.
+*Built Nov 2025 -- Mar 2026.*
 
-I built this to go beyond typical monolithic CRUD apps and tackle the real problems that come with distributed systems: service communication, data consistency across boundaries, caching strategies, and deployment orchestration.
+A microservices e-commerce platform: 8 independent services, one PostgreSQL database per service, Redis for carts, Elasticsearch for product search, Stripe for payments, all behind an API gateway with Nginx load balancing across 3 replicas.
 
-**Highlights**: 8 microservices · 19 Docker containers · Nginx load balancing (3 replicas) · Elasticsearch full-text search · Stripe payments · Redis caching (LRU, 256MB) · JWT auth with token rotation · GitHub Actions CI/CD · k6 load tested (500 VUs, p95 < 100ms)
+I built this to go beyond a typical CRUD app and deal with the actual problems distributed systems create: service-to-service communication, keeping data consistent across service boundaries, caching, and deployment.
 
-![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=for-the-badge&logo=next.js&logoColor=white) ![NestJS](https://img.shields.io/badge/NestJS_10-E0234E?style=for-the-badge&logo=nestjs&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript_5-3178C6?style=for-the-badge&logo=typescript&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL_15-4169E1?style=for-the-badge&logo=postgresql&logoColor=white) ![Redis](https://img.shields.io/badge/Redis_7-DC382D?style=for-the-badge&logo=redis&logoColor=white) ![Elasticsearch](https://img.shields.io/badge/Elasticsearch_8.11-005571?style=for-the-badge&logo=elasticsearch&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white) ![Stripe](https://img.shields.io/badge/Stripe-635BFF?style=for-the-badge&logo=stripe&logoColor=white) ![Nginx](https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white) ![Prisma](https://img.shields.io/badge/Prisma_5-2D3748?style=for-the-badge&logo=prisma&logoColor=white)
+**Stack**: Next.js, NestJS, TypeScript, PostgreSQL, Redis, Elasticsearch, Docker, Stripe, Nginx, Prisma
+
+**Live**: [shop-sphere.online](https://shop-sphere.online)
 
 ---
 
@@ -56,18 +58,7 @@ I built this to go beyond typical monolithic CRUD apps and tackle the real probl
 
 Each service owns its data. No shared databases. The Cart Service is entirely Redis-backed (carts are ephemeral), while the other five data services each get their own PostgreSQL instance. Product Service additionally indexes into Elasticsearch for full-text search.
 
-### System Design Patterns
-
-| Pattern | Implementation | Why It Matters |
-|---------|---------------|----------------|
-| **API Gateway** | Single entry point handling auth, routing, and caching for all 7 downstream services | Clients hit one URL. Services don't deal with auth or rate limiting. |
-| **Database-per-Service** | 5 separate PostgreSQL instances + Redis + Elasticsearch | Each service schema evolves independently. No coupling through shared tables. |
-| **Horizontal Scaling** | 3 API Gateway replicas behind Nginx (least_conn) | Gateway is the bottleneck in a fan-out architecture, so it scales first. |
-| **Caching (multi-layer)** | Redis at the gateway intercepts repeated GET requests (30s TTL). Cart data lives entirely in Redis. | Reduces DB load on read-heavy endpoints. Cache invalidation on writes. |
-| **Rate Limiting** | Nginx rate zones: 5000 req/s for API, 100 req/s for auth, unlimited for Stripe webhooks | Protects against abuse with different thresholds per endpoint sensitivity. |
-| **Data Consistency** | Order items snapshot product name/price/image at purchase time | Products can change after an order is placed. The order record stays accurate. |
-| **Stateless Auth** | JWT access tokens (15min) + refresh tokens (7d, stored in DB for revocation) | Any gateway replica can validate a request. No sticky sessions needed. |
-| **Search Indexing** | Elasticsearch mirrors product data from PostgreSQL | PostgreSQL is the source of truth. ES handles fuzzy matching and relevance scoring. |
+The API Gateway is the single entry point: it handles JWT validation, rate limiting, and a 30-second Redis cache on repeated GET requests, so downstream services don't have to deal with any of that themselves.
 
 ### Why Microservices?
 
@@ -203,14 +194,14 @@ npm run test:cov
 
 ### Load Testing (k6)
 
-I wrote 4 k6 scenarios to validate performance under load and catch regressions. Tests ramp from 50 to 500 virtual users over 5 minutes.
+Four k6 scenarios, each with a latency threshold and an error-rate ceiling:
 
-| Scenario | What It Tests | Threshold | Target |
-|----------|--------------|-----------|--------|
-| **Product Browse** | Listing, detail pages, search | `p(95)` | < 100ms |
-| **Search Benchmark** | Elasticsearch text search, filtered search, price range, combined queries | `p(95)` | < 50ms |
-| **CRUD Operations** | Read/write across services (authenticated) | `p(95)` | < 80ms |
-| **Order Flow** | Full transaction flow at 2,000 iterations/sec (constant arrival rate, 500 pre-allocated VUs) | `p(95)` | < 100ms |
+| Scenario | What It Tests | Threshold |
+|----------|--------------|-----------|
+| **Product Browse** | Listing, detail pages, search | p95 < 100ms |
+| **Search Benchmark** | Elasticsearch text search, filtered search, price range, combined queries | p95 < 50ms |
+| **CRUD Operations** | Read/write across services (authenticated) | p95 < 80ms |
+| **Order Flow** | Full checkout flow, constant-arrival-rate executor at 2,000 req/s, 500 pre-allocated VUs | p95 < 100ms |
 
 ```bash
 # Run all scenarios
@@ -219,8 +210,6 @@ cd load-tests && ./run-all.sh
 # Run individual scenario
 k6 run ./load-tests/scenarios/search-benchmark.js
 ```
-
-All scenarios enforce strict error thresholds (`< 1%` for browse/search/CRUD, `< 5%` for order flow). The order flow scenario uses `constant-arrival-rate` executor at 2,000 req/s to simulate sustained checkout traffic.
 
 ### CI/CD Pipeline
 

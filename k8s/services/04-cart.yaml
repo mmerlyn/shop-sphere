@@ -1,0 +1,48 @@
+# Cart service — entirely Redis-backed. Carts are ephemeral with TTL expiry.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cart-svc
+  namespace: shopsphere
+  labels: { app: cart-svc }
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: cart-svc } }
+  template:
+    metadata: { labels: { app: cart-svc } }
+    spec:
+      containers:
+        - name: cart-svc
+          image: shopsphere/cart-service:local
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3003 }]
+          env:
+            - { name: PORT, value: "3003" }
+          envFrom:
+            - configMapRef: { name: app-config }
+            - secretRef: { name: app-secrets }
+          resources:
+            requests: { cpu: "150m", memory: "192Mi" }
+            limits: { cpu: "1", memory: "384Mi" }
+          startupProbe:
+            httpGet: { path: /api/health, port: 3003 }
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /api/health, port: 3003 }
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 10
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3003 }
+            periodSeconds: 10
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cart-svc
+  namespace: shopsphere
+spec:
+  selector: { app: cart-svc }
+  ports: [{ port: 3003, targetPort: 3003 }]

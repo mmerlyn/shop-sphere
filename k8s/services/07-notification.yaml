@@ -1,0 +1,48 @@
+# Notification service — order-confirmation emails (mocked / Nodemailer). Stateless.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-svc
+  namespace: shopsphere
+  labels: { app: notification-svc }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: notification-svc } }
+  template:
+    metadata: { labels: { app: notification-svc } }
+    spec:
+      containers:
+        - name: notification-svc
+          image: shopsphere/notification-service:local
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3005 }]
+          env:
+            - { name: PORT, value: "3005" }
+          envFrom:
+            - configMapRef: { name: app-config }
+            - secretRef: { name: app-secrets }
+          resources:
+            requests: { cpu: "50m", memory: "160Mi" }
+            limits: { cpu: "300m", memory: "320Mi" }
+          startupProbe:
+            httpGet: { path: /api/health, port: 3005 }
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /api/health, port: 3005 }
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 10
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3005 }
+            periodSeconds: 10
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-svc
+  namespace: shopsphere
+spec:
+  selector: { app: notification-svc }
+  ports: [{ port: 3005, targetPort: 3005 }]

@@ -1,0 +1,49 @@
+# User service — auth (JWT issuance/rotation) + profiles. Owns the users DB.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-svc
+  namespace: shopsphere
+  labels: { app: user-svc }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: user-svc } }
+  template:
+    metadata: { labels: { app: user-svc } }
+    spec:
+      containers:
+        - name: user-svc
+          image: shopsphere/user-service:local
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3001 }]
+          env:
+            - { name: PORT, value: "3001" }
+            - { name: DATABASE_URL, value: "postgresql://shopsphere:shopsphere@postgres-users:5432/users?schema=public" }
+          envFrom:
+            - configMapRef: { name: app-config }
+            - secretRef: { name: app-secrets }
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+          startupProbe:
+            httpGet: { path: /api/health, port: 3001 }
+            periodSeconds: 5
+            failureThreshold: 40
+          livenessProbe:
+            httpGet: { path: /api/health, port: 3001 }
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 10
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3001 }
+            periodSeconds: 10
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-svc
+  namespace: shopsphere
+spec:
+  selector: { app: user-svc }
+  ports: [{ port: 3001, targetPort: 3001 }]

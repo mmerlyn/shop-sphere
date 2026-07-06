@@ -1,0 +1,49 @@
+# Review service — product reviews + helpful votes. Owns the reviews DB.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: review-svc
+  namespace: shopsphere
+  labels: { app: review-svc }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: review-svc } }
+  template:
+    metadata: { labels: { app: review-svc } }
+    spec:
+      containers:
+        - name: review-svc
+          image: shopsphere/review-service:local
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3007 }]
+          env:
+            - { name: PORT, value: "3007" }
+            - { name: DATABASE_URL, value: "postgresql://shopsphere:shopsphere@postgres-reviews:5432/reviews?schema=public" }
+          envFrom:
+            - configMapRef: { name: app-config }
+            - secretRef: { name: app-secrets }
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+          startupProbe:
+            httpGet: { path: /api/health, port: 3007 }
+            periodSeconds: 5
+            failureThreshold: 40
+          livenessProbe:
+            httpGet: { path: /api/health, port: 3007 }
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 10
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3007 }
+            periodSeconds: 10
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: review-svc
+  namespace: shopsphere
+spec:
+  selector: { app: review-svc }
+  ports: [{ port: 3007, targetPort: 3007 }]

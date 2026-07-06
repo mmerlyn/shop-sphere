@@ -35,7 +35,8 @@ export class PaymentService {
     }
 
     this.stripe = new Stripe(secretKey || '', {
-      apiVersion: '2025-11-17.clover',
+      // Cast: tolerate Stripe SDK minor bumps without a compile-time type break.
+      apiVersion: '2025-11-17.clover' as any,
     });
   }
 

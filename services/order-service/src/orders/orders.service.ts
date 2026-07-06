@@ -9,12 +9,23 @@ import { PrismaService } from '../database/prisma.service';
 import { CreateOrderDto, UpdateOrderStatusDto, OrderStatus } from './dto';
 import { Prisma } from '../generated/prisma';
 import axios from 'axios';
+import * as http from 'http';
+import * as https from 'https';
+
+// Pooled keep-alive client — reuse upstream connections to cart/inventory/user
+// services under checkout load instead of opening a socket per call.
+const httpClient = axios.create({
+  httpAgent: new http.Agent({ keepAlive: true, maxSockets: 256, keepAliveMsecs: 30000 }),
+  httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 256, keepAliveMsecs: 30000 }),
+  timeout: 15000,
+});
 
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
   private readonly cartServiceUrl: string;
   private readonly productServiceUrl: string;
+  private readonly inventoryServiceUrl: string;
   private readonly userServiceUrl: string;
   private readonly notificationServiceUrl: string;
 
@@ -26,6 +37,8 @@ export class OrdersService {
       this.configService.get<string>('CART_SERVICE_URL') || 'http://localhost:3003';
     this.productServiceUrl =
       this.configService.get<string>('PRODUCT_SERVICE_URL') || 'http://localhost:3002';
+    this.inventoryServiceUrl =
+      this.configService.get<string>('INVENTORY_SERVICE_URL') || 'http://localhost:3008';
     this.userServiceUrl =
       this.configService.get<string>('USER_SERVICE_URL') || 'http://localhost:3001';
     this.notificationServiceUrl =
@@ -68,7 +81,7 @@ export class OrdersService {
           create: cart.items.map((item: any) => ({
             productId: item.productId,
             name: item.name,
-            sku: item.productId, // Using productId as SKU for now
+            sku: item.productId, // No separate SKU field in the catalog; productId doubles as SKU
             price: new Prisma.Decimal(item.price),
             quantity: item.quantity,
             image: item.image,
@@ -78,48 +91,40 @@ export class OrdersService {
       include: { items: true },
     });
 
-    for (const item of cart.items) {
-      await this.updateProductInventory(item.productId, -item.quantity);
-    }
+    // Decrement stock atomically via the Inventory service (REST, DNS-discovered).
+    // Must stay on the hot path and awaited: insufficient stock has to fail the order.
+    await this.decrementInventory(
+      cart.items.map((item: any) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+      })),
+    );
 
-    await this.clearCart(cartId);
-
-    this.sendOrderConfirmationEmail(order, shippingAddress);
+    // Cart clearing is best-effort cleanup with no bearing on order correctness
+    // (order is already committed, stock already decremented), so — like the
+    // confirmation email — it runs off the hot path instead of blocking the response.
+    setImmediate(() => this.clearCart(cartId));
+    setImmediate(() => this.dispatchOrderConfirmation(order));
 
     return order;
   }
 
-  private async sendOrderConfirmationEmail(order: any, shippingAddress: any): Promise<void> {
+  // Mocked confirmation dispatch — kept off the checkout hot path. Best-effort
+  // notify; failures are swallowed so they never affect order success/latency.
+  private async dispatchOrderConfirmation(order: any): Promise<void> {
     try {
-      const user = await this.fetchUser(order.userId);
-      if (!user) return;
-
-      await axios.post(`${this.notificationServiceUrl}/api/notifications/order-confirmation`, {
-        email: user.email,
-        firstName: user.firstName,
-        orderNumber: order.orderNumber,
-        orderDate: order.createdAt,
-        items: order.items.map((item: any) => ({
-          name: item.name,
-          quantity: item.quantity,
-          price: Number(item.price),
-          image: item.image,
-        })),
-        subtotal: Number(order.subtotal),
-        shipping: Number(order.shippingCost),
-        tax: Number(order.tax),
-        discount: Number(order.discount),
-        total: Number(order.total),
-        shippingAddress,
-      });
-    } catch (error) {
-      this.logger.error('Failed to send order confirmation notification', error);
+      await httpClient.post(
+        `${this.notificationServiceUrl}/api/notifications/order-confirmation`,
+        { orderNumber: order.orderNumber, userId: order.userId, total: Number(order.total) },
+      );
+    } catch {
+      /* mocked email — ignore */
     }
   }
 
   private async fetchUser(userId: string): Promise<any> {
     try {
-      const response = await axios.get(`${this.userServiceUrl}/api/users/${userId}`);
+      const response = await httpClient.get(`${this.userServiceUrl}/api/users/${userId}`);
       return response.data;
     } catch (error) {
       this.logger.warn(`Failed to fetch user ${userId}`);
@@ -203,9 +208,12 @@ export class OrdersService {
     });
 
     if (updateStatusDto.status === OrderStatus.CANCELLED) {
-      for (const item of order.items) {
-        await this.updateProductInventory(item.productId, item.quantity);
-      }
+      await this.restockInventory(
+        order.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+        })),
+      );
     }
 
     return updated;
@@ -320,7 +328,7 @@ export class OrdersService {
 
   private async fetchCart(cartId: string): Promise<any> {
     try {
-      const response = await axios.get(
+      const response = await httpClient.get(
         `${this.cartServiceUrl}/api/cart/${cartId}`,
       );
       return response.data;
@@ -332,23 +340,39 @@ export class OrdersService {
 
   private async clearCart(cartId: string): Promise<void> {
     try {
-      await axios.delete(`${this.cartServiceUrl}/api/cart/${cartId}/items`);
+      await httpClient.delete(`${this.cartServiceUrl}/api/cart/${cartId}/items`);
     } catch (error) {
       this.logger.warn(`Failed to clear cart ${cartId}`);
     }
   }
 
-  private async updateProductInventory(
-    productId: string,
-    quantity: number,
+  // Atomic, all-or-nothing stock decrement across every line in the order.
+  // If Inventory rejects (insufficient stock), the checkout fails loudly.
+  private async decrementInventory(
+    items: { productId: string; quantity: number }[],
   ): Promise<void> {
     try {
-      await axios.patch(
-        `${this.productServiceUrl}/api/products/${productId}/inventory`,
-        { quantity },
-      );
+      await httpClient.post(`${this.inventoryServiceUrl}/api/inventory/decrement`, {
+        items,
+      });
     } catch (error) {
-      this.logger.warn(`Failed to update inventory for product ${productId}`);
+      const msg =
+        error?.response?.data?.message || 'Inventory decrement failed';
+      this.logger.warn(`Inventory decrement failed: ${msg}`);
+      throw new BadRequestException(msg);
+    }
+  }
+
+  // Compensating restock when an order is cancelled.
+  private async restockInventory(
+    items: { productId: string; quantity: number }[],
+  ): Promise<void> {
+    try {
+      await httpClient.post(`${this.inventoryServiceUrl}/api/inventory/restock`, {
+        items,
+      });
+    } catch (error) {
+      this.logger.warn('Failed to restock inventory after cancellation');
     }
   }
 }

@@ -64,9 +64,9 @@ The API Gateway is the single entry point: it handles JWT validation, rate limit
 
 Honestly, a monolith would ship faster for a project this size. I chose microservices intentionally to work through the challenges.
 
-Database-per-service forced me to think about data ownership. When the Order Service needs product details, it can't just JOIN — it has to call the Product Service and snapshot the data at purchase time. Inter-service calls are plain HTTP/REST over Axios; I considered a message queue but the call patterns here are mostly request-response, so synchronous was simpler to reason about. A broker like RabbitMQ or Kafka would earn its keep once there's an actual event-driven flow, like inventory reservation, to justify it.
+Database-per-service forced me to think about data ownership. When the Order Service needs product details, it can't just JOIN. It has to call the Product Service and snapshot the data at purchase time. Inter-service calls are plain HTTP/REST over Axios; I considered a message queue but the call patterns here are mostly request-response, so synchronous was simpler to reason about. A broker like RabbitMQ or Kafka would earn its keep once there's an actual event-driven flow, like inventory reservation, to justify it.
 
-The API Gateway handles auth, rate limiting, and caching so the individual services can stay focused on business logic — they trust the gateway and skip re-validating JWTs themselves.
+The API Gateway handles auth, rate limiting, and caching so the individual services can stay focused on business logic. They trust the gateway and skip re-validating JWTs themselves.
 
 ### How a Request Flows Through the System
 
@@ -215,7 +215,7 @@ k6 run ./load-tests/scenarios/search-benchmark.js
 
 GitHub Actions runs on every push and PR to `main`: ESLint on the frontend, a full Next.js production build, and all 8 NestJS services built in parallel (matrix strategy, with Prisma client generation for the DB-backed ones).
 
-Deployment is automated on push to `main` — frontend to Vercel, backend to Fly.io.
+Deployment is automated on push to `main`: frontend to Vercel, backend to Fly.io.
 
 ---
 
@@ -223,11 +223,11 @@ Deployment is automated on push to `main` — frontend to Vercel, backend to Fly
 
 Things I'd tackle to take this from "works well" to "production-grade at scale":
 
-**Reliability.** Right now, if the Notification Service is slow, the order request is slower too — a message broker (RabbitMQ or Kafka) would decouple that instead of chaining it into the checkout path. A circuit breaker on the gateway (something like `opossum` for Node) would help it fail fast when a downstream service is struggling, rather than piling up on timeouts. And honestly, debugging a request across 8 services with nothing but logs and correlation IDs gets old fast — proper distributed tracing (Jaeger or Zipkin) with flame graphs is the real fix.
+**Reliability.** Right now, if the Notification Service is slow, the order request is slower too. A message broker (RabbitMQ or Kafka) would decouple that instead of chaining it into the checkout path. A circuit breaker on the gateway (something like `opossum` for Node) would help it fail fast when a downstream service is struggling, rather than piling up on timeouts. And honestly, debugging a request across 8 services with nothing but logs and correlation IDs gets old fast, so proper distributed tracing (Jaeger or Zipkin) with flame graphs is the real fix.
 
-**Performance.** HTTP/JSON adds serialization overhead on every hop between services; gRPC with Protocol Buffers would shrink payloads and enforce actual contracts instead of hoping the shapes match. The Order Service could also use CQRS to split reads from writes — the primary stays strongly consistent for writes, while high-volume order-history queries hit a read replica. Order tracking is polling-based right now; a WebSocket connection would make that instant instead.
+**Performance.** HTTP/JSON adds serialization overhead on every hop between services; gRPC with Protocol Buffers would shrink payloads and enforce actual contracts instead of hoping the shapes match. The Order Service could also use CQRS to split reads from writes: the primary stays strongly consistent for writes, while high-volume order-history queries hit a read replica. Order tracking is polling-based right now; a WebSocket connection would make that instant instead.
 
-**Infrastructure.** Docker Compose is fine for local dev and PM2 gets you a single-VM deploy, but neither gives you real service discovery, autoscaling, or health-based rolling deployments — that's what Kubernetes is for, and it's the obvious next step for this running in actual production.
+**Infrastructure.** Docker Compose is fine for local dev and PM2 gets you a single-VM deploy, but neither gives you real service discovery, autoscaling, or health-based rolling deployments. That's what Kubernetes is for, and it's the obvious next step for running this in actual production.
 
 ---
 

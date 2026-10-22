@@ -73,6 +73,7 @@ jobs:
           - notification-service
           - payment-service
           - review-service
+          - inventory-service
 
     steps:
       - name: Checkout code
@@ -89,10 +90,45 @@ jobs:
         run: npm ci
 
       - name: Generate Prisma Client
-        if: contains(fromJson('["user-service", "product-service", "order-service", "payment-service", "review-service"]'), matrix.service)
+        if: contains(fromJson('["user-service", "product-service", "order-service", "payment-service", "review-service", "inventory-service"]'), matrix.service)
         run: npx prisma generate
         working-directory: services/${{ matrix.service }}
 
       - name: Build
         run: npm run build
+        working-directory: services/${{ matrix.service }}
+
+  test-services:
+    name: Unit Tests (Jest)
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Only these services have *.spec.ts files today.
+        service:
+          - user-service
+          - product-service
+          - order-service
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies (workspace root)
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        working-directory: services/${{ matrix.service }}
+
+      - name: Run Jest
+        run: npx jest --ci
         working-directory: services/${{ matrix.service }}

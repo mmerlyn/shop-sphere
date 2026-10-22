@@ -7,8 +7,19 @@ import { OrderStatus } from './dto';
 import { Prisma } from '@prisma/client';
 import axios from 'axios';
 
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+// OrdersService calls other services through one pooled client made with
+// axios.create() at module load. The mock returns a shared fake client, so each
+// test controls the cart, inventory and notification responses.
+jest.mock('axios', () => {
+  const client = { get: jest.fn(), post: jest.fn(), patch: jest.fn(), delete: jest.fn() };
+  return { __esModule: true, default: { create: jest.fn(() => client), __client: client } };
+});
+const mockHttpClient = (axios as any).__client as {
+  get: jest.Mock;
+  post: jest.Mock;
+  patch: jest.Mock;
+  delete: jest.Mock;
+};
 
 describe('OrdersService', () => {
   let service: OrdersService;
@@ -120,25 +131,29 @@ describe('OrdersService', () => {
     };
 
     it('should create an order successfully', async () => {
-      mockedAxios.get.mockResolvedValue({ data: mockCart });
-      mockedAxios.patch.mockResolvedValue({});
-      mockedAxios.delete.mockResolvedValue({});
+      mockHttpClient.get.mockResolvedValue({ data: mockCart });
+      mockHttpClient.post.mockResolvedValue({});
+      mockHttpClient.delete.mockResolvedValue({});
       mockPrismaService.order.create.mockResolvedValue(mockOrder);
 
       const result = await service.create('user-1', createDto);
 
       expect(result).toBeDefined();
       expect(mockPrismaService.order.create).toHaveBeenCalled();
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
+        expect.stringContaining('/api/inventory/decrement'),
+        { items: [{ productId: 'prod-1', quantity: 2 }] },
+      );
     });
 
     it('should throw BadRequestException for empty cart', async () => {
-      mockedAxios.get.mockResolvedValue({ data: { items: [] } });
+      mockHttpClient.get.mockResolvedValue({ data: { items: [] } });
 
       await expect(service.create('user-1', createDto)).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if cart fetch fails', async () => {
-      mockedAxios.get.mockRejectedValue(new Error('Cart service unavailable'));
+      mockHttpClient.get.mockRejectedValue(new Error('Cart service unavailable'));
 
       await expect(service.create('user-1', createDto)).rejects.toThrow(BadRequestException);
     });
@@ -248,11 +263,14 @@ describe('OrdersService', () => {
         ...mockOrder,
         status: 'CANCELLED',
       });
-      mockedAxios.patch.mockResolvedValue({});
+      mockHttpClient.post.mockResolvedValue({});
 
       await service.updateStatus('order-1', { status: OrderStatus.CANCELLED });
 
-      expect(mockedAxios.patch).toHaveBeenCalled();
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
+        expect.stringContaining('/api/inventory/restock'),
+        { items: [{ productId: 'prod-1', quantity: 2 }] },
+      );
     });
   });
 
@@ -263,7 +281,7 @@ describe('OrdersService', () => {
         ...mockOrder,
         status: 'CANCELLED',
       });
-      mockedAxios.patch.mockResolvedValue({});
+      mockHttpClient.post.mockResolvedValue({});
 
       const result = await service.cancel('order-1', 'user-1');
 
@@ -348,7 +366,7 @@ describe('OrdersService', () => {
             ...mockOrder,
             status: to,
           });
-          mockedAxios.patch.mockResolvedValue({});
+          mockHttpClient.post.mockResolvedValue({});
 
           const result = await service.updateStatus('order-1', { status: to });
           expect(result.status).toBe(to);

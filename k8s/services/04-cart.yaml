@@ -34,7 +34,7 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 10
           readinessProbe:
-            httpGet: { path: /api/health, port: 3003 }
+            httpGet: { path: /api/health/ready, port: 3003 }
             periodSeconds: 10
             failureThreshold: 3
 ---

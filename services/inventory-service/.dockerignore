@@ -1,4 +1,8 @@
+# Keep the build context small and never copy local builds, dependencies or
+# secrets (.env) into the image; the Dockerfile installs and builds from source.
 node_modules
 dist
+*.tsbuildinfo
 .env
-src/generated
+.env.*
+coverage

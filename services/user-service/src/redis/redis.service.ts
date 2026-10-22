@@ -11,12 +11,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     this.client = new Redis({
       host: this.configService.get<string>('REDIS_HOST') || 'localhost',
       port: this.configService.get<number>('REDIS_PORT') || 6379,
+      // Always retry, with backoff capped at 5s. Redis can be unreachable when
+      // a pod starts (for example after a cluster restart), and the pod must
+      // reconnect on its own when Redis comes back.
       retryStrategy: (times) => {
-        if (times > 3) {
-          this.logger.error('Redis connection failed after 3 retries');
-          return null;
+        if (times === 5 || times % 30 === 0) {
+          this.logger.warn(`Redis still unreachable after ${times} attempts; retrying`);
         }
-        return Math.min(times * 100, 3000);
+        return Math.min(times * 200, 5000);
       },
     });
   }
@@ -60,6 +62,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async exists(key: string): Promise<boolean> {
     const result = await this.client.exists(key);
     return result === 1;
+  }
+
+  /** True when the client has a live connection. */
+  isReady(): boolean {
+    return this.client.status === 'ready';
   }
 
   getClient(): Redis {

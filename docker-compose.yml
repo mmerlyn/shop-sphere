@@ -101,6 +101,26 @@ services:
       timeout: 5s
       retries: 5
 
+  # PostgreSQL for Inventory Service
+  postgres-inventory:
+    image: postgres:15-alpine
+    container_name: shop-sphere-postgres-inventory
+    environment:
+      POSTGRES_DB: inventory_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    ports:
+      - "5437:5432"
+    volumes:
+      - postgres-inventory-data:/var/lib/postgresql/data
+    networks:
+      - shop-sphere-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Redis for Cart Service and Caching
   redis:
     image: redis:7-alpine
@@ -306,6 +326,7 @@ services:
       PRODUCT_SERVICE_URL: http://product-service:3002
       USER_SERVICE_URL: http://user-service:3001
       NOTIFICATION_SERVICE_URL: http://notification-service:3005
+      INVENTORY_SERVICE_URL: http://inventory-service:3008
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     depends_on:
       postgres-orders:
@@ -363,6 +384,21 @@ services:
     networks:
       - shop-sphere-network
 
+  inventory-service:
+    build:
+      context: ./services/inventory-service
+      dockerfile: Dockerfile
+    container_name: shop-sphere-inventory-service
+    environment:
+      PORT: 3008
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres-inventory:5432/inventory_db?schema=public
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    depends_on:
+      postgres-inventory:
+        condition: service_healthy
+    networks:
+      - shop-sphere-network
+
   # PgAdmin for Database Management (Optional)
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -380,6 +416,7 @@ services:
       - postgres-orders
       - postgres-payments
       - postgres-reviews
+      - postgres-inventory
 
 volumes:
   postgres-users-data:
@@ -387,6 +424,7 @@ volumes:
   postgres-orders-data:
   postgres-payments-data:
   postgres-reviews-data:
+  postgres-inventory-data:
   redis-data:
   elasticsearch-data:
 

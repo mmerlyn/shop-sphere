@@ -79,6 +79,7 @@ module.exports = {
         PRODUCT_SERVICE_URL: 'http://localhost:3002',
         PAYMENT_SERVICE_URL: 'http://localhost:3006',
         NOTIFICATION_SERVICE_URL: 'http://localhost:3005',
+        INVENTORY_SERVICE_URL: 'http://localhost:3008',
       }
     },
     {
@@ -111,6 +112,16 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3007,
         ORDER_SERVICE_URL: 'http://localhost:3004',
+      }
+    },
+    {
+      name: 'inventory-service',
+      cwd: './services/inventory-service',
+      script: 'dist/main.js',
+      instances: 1,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3008,
       }
     },
   ]

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersService } from './users.service';
 import { PrismaService } from '../database/prisma.service';
+import { RedisService } from '../redis/redis.service';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -28,11 +29,21 @@ describe('UsersService', () => {
     },
   };
 
+  // The service caches reads in Redis. Every lookup is a cache miss here,
+  // so each test exercises the database path.
+  const mockRedisService = {
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue(undefined),
+    del: jest.fn().mockResolvedValue(undefined),
+    delPattern: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: RedisService, useValue: mockRedisService },
       ],
     }).compile();
 

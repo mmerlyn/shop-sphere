@@ -1,6 +1,6 @@
 # ShopSphere
 
-*Built Nov 2025 -- Mar 2026.*
+*Built Aug 2025 -- Dec 2025.*
 
 A microservices e-commerce platform: an API gateway plus NestJS business services, one PostgreSQL database per service, Redis for carts, Elasticsearch for product search and Stripe for payments. Docker Compose and PM2 run all 9 services. Kubernetes runs 8 of them. Docker Compose runs Nginx in front of 3 gateway replicas. A Kubernetes setup on a local kind cluster adds autoscaling (HPA), probes and k6 load tests.
 
@@ -280,14 +280,14 @@ k6 run ./load-tests/scenarios/search-benchmark.js
 
 All runs use the local kind cluster: 4 nodes on one 8-core laptop VM. Search runs query about 1M products (1,000,000 rows seeded, see `k8s/RUNBOOK.md`).
 
-**Main results (June 2026)**
+**Main results**
 
 | Test | Result | Source |
 |---|---|---|
 | Search at 800 req/s | p95 49.6ms, 0 of 36,001 requests failed | `load-tests/results/k8s_final/search-1m.summary.json` |
 | Checkout at ~240 req/s (80 checkouts/s) | 100% success (3,600 / 3,600 checkouts), order-create p95 87ms, all requests p95 56.6ms | `load-tests/results/k8s_final/checkout-flow.summary.json` |
 
-**Resilience (October 21, 2026, search at 300 req/s)**
+**Resilience (search at 300 req/s)**
 
 | Test | Result | Source |
 |---|---|---|
@@ -295,9 +295,9 @@ All runs use the local kind cluster: 4 nodes on one 8-core laptop VM. Search run
 | Rolling restart of the catalog service | 12,000 / 12,000 requests OK | `load-tests/results/2026-10-21/rolling-restart.summary.json` |
 | Redis pod deleted (after the reconnect fix) | carts back to 200 in about 10s, 0 cart pod restarts | `load-tests/results/2026-10-21/README.md` |
 
-**Later capacity and saturation tests (October 21, 2026, same single laptop VM)**
+**Later capacity and saturation tests (same single laptop VM)**
 
-These runs push checkout past the June load to find the limit of one laptop. They do not replace the June result above.
+These runs push checkout past the main load to find the limit of one laptop. They do not replace the main result above.
 
 | Test | Result | Source |
 |---|---|---|
@@ -307,7 +307,7 @@ These runs push checkout past the June load to find the limit of one laptop. The
 
 Earlier runs at 500 checkouts/s also saturated this hardware. The 500 checkouts/s default in `checkout-flow.js` and the 2,000 req/s target in `order-flow.js` are script targets that this setup did not reach.
 
-### Resilience runs and a bug they found (October 2026)
+### Resilience runs and a bug they found
 
 Run on the local kind cluster (4 nodes on one 8-core laptop VM) with search at 300 req/s. Full results and scripts: [`load-tests/results/2026-10-21/`](load-tests/results/2026-10-21/README.md). The one-pod crash run had p95 5.1ms and the rolling restart p95 7.5ms. When all catalog pods are deleted at once (a full outage), requests fail until new pods are ready, as expected.
 
